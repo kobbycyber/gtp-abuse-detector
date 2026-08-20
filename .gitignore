@@ -9,4 +9,3 @@ eval/metrics.json
 eval/RESULTS.md
 *.log
 .venv/
-.claude/

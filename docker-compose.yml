@@ -1,4 +1,4 @@
-name: gtpu-abuse-lab
+name: gtp-abuse-detector
 
 # Fixed /24 so every component has a stable address the configs can reference.
 networks:
@@ -63,7 +63,9 @@ services:
     cap_add: [NET_ADMIN, NET_RAW]
     volumes:
       - captures:/captures
-    command: ["live", "--iface", "eth0", "--core-ips", "10.10.10.10,10.10.10.11", "--json"]
+    command: ["live", "--iface", "eth0", "--core-ips", "10.10.10.10,10.10.10.11",
+              "--gnb-ips", "10.10.10.20,10.10.10.21",
+              "--metrics-out", "/captures/live.json", "--json"]
     restart: unless-stopped
 
   # Attacker is manual (profile). Run `make attack` to fire the corpus,

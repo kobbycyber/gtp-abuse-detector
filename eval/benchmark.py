@@ -80,7 +80,7 @@ def build_corpus(seed: int, benign_n: int, per_class: int):
     for _ in range(per_class):
         t = rng.randint(0x1, 0xffff)
         attacks.append((ga.mk_gtp_in_gtp(UPF, t, GNB), True, "gtp_in_gtp"))
-        attacks.append((ga.mk_pfcp_smuggle(UPF, t, GNB), True, "pfcp_smuggle"))
+        attacks.append((ga.mk_pfcp_smuggle(UPF, t, GNB, rng), True, "pfcp_smuggle"))
         attacks.append((ga.mk_ngap_smuggle(UPF, t, GNB), True, "ngap_smuggle"))
         attacks.append((ga.mk_inner_to_core(UPF, t, GNB, SMF), True, "inner_to_core"))
     for vt in victim_teids:
@@ -111,9 +111,13 @@ def score_corpus(pkts, labels, classes, evaluator, use_allowlist=True, latency=F
     for pkt, truth, cls in zip(pkts, labels, classes):
         # round-trip through raw bytes so we test real dissection, not the
         # in-memory object graph (the R1 finding is precisely about this).
-        rt = IP(bytes(pkt))
+        # The timer spans dissection AND rule evaluation, because a passive tap
+        # must pay both. Timing rule evaluation alone overstates sustained
+        # throughput by roughly 3x, since dissection dominates.
+        wire = bytes(pkt)
         board.packets_seen += 1
         t0 = time.perf_counter()
+        rt = IP(wire)
         findings = evaluator(rt, st)
         if latency:
             board.latency.record(time.perf_counter() - t0)

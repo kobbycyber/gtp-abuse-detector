@@ -2,7 +2,7 @@
 
 ## Prerequisites (live path)
 
-- A Linux host with a real kernel — a Proxmox VM (Ubuntu 22.04) is ideal.
+- A Linux host with a real kernel; Ubuntu 22.04 is ideal.
 - `docker` + `docker compose` plugin.
 - `/dev/net/tun` present (default on Ubuntu). The core and RAN containers get
   `NET_ADMIN` and the tun device via compose.
