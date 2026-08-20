@@ -27,7 +27,7 @@ user-plane traffic (PFCP and NGAP), and inner packets aimed at core network
 functions.
 
 We evaluate the detector on a 1,320-packet labelled corpus. Its 720 benign
-packets span eleven traffic types, including deliberately awkward cases such as
+packets span twelve traffic types, including deliberately awkward cases such as
 non-IP "Unstructured" payloads and legitimate handovers. On this corpus the
 detector reaches precision, recall, and F1 of 1.0 with a false-positive rate of
 0.0, and the result stays the same across five random seeds. The whole
@@ -101,7 +101,7 @@ core instead of a static packet capture of unknown origin.
    detector and a labelled attack-traffic generator (Section 4).
 2. A four-rule passive detector (Section 5), evaluated rigorously rather than
    circularly (Section 6.1). On a 1,320-packet corpus whose 720 benign packets
-   span eleven traffic types, including awkward Unstructured-PDU bytes and
+   span twelve traffic types, including awkward Unstructured-PDU bytes and
    legitimate handovers, it reaches precision, recall, and F1 of 1.0 with a
    false-positive rate of 0.0, stable across five seeds. The evaluation adds
    three things a bare score omits: a naive-baseline comparison that measures the
@@ -198,7 +198,7 @@ academic literature.
 | `core/` | Open5GS all-in-one 5G core (AMF, SMF, UPF, plus support functions: NRF, SCP, AUSF, UDM, UDR, PCF, BSF, NSSF) |
 | `ran/` | UERANSIM-simulated gNB and UE, generating real GTP-U traffic on N3 |
 | `detector/` | The main research contribution: a passive Scapy-based detector, the rule engine, metrics, and the naive baseline (`baselines.py`) used to measure the contribution |
-| `attacker/` | Lab-only traffic: the abuse generator, the realistic eleven-category benign generator (`benign_traffic.py`), and the crafted evasion suite (`evasions.py`) |
+| `attacker/` | Lab-only traffic: the abuse generator, the realistic twelve-category benign generator (`benign_traffic.py`), and the crafted evasion suite (`evasions.py`) |
 | `eval/` | Reproducible offline benchmark (`benchmark.py`) producing `metrics.json` and `RESULTS.md`: headline metrics, baseline comparison, false-positive analysis, multi-seed stability, and evasion scoring |
 
 ### 4.2 Topology
@@ -375,7 +375,7 @@ command (`python3 eval/run_eval.py`, with no Docker, root, or network) and
 produces seven distinct pieces of evidence, all written to `RESULTS.md`.
 
 The corpus has 1,320 packets on the primary seed. 600 are malicious, spread
-evenly across the five attack classes. The other 720 are benign and span eleven
+evenly across the five attack classes. The other 720 are benign and span twelve
 traffic types: TLS, HTTP, DNS, QUIC, NTP, RTP/VoIP, ICMP, IPv6, fragmented IP,
 and IP-options, plus two types chosen specifically to stress the detector. The
 first is Unstructured-PDU-session bytes, non-IP inner payloads, some crafted to
@@ -393,8 +393,8 @@ varied benign traffic.
 | Recall | 1.0 |
 | F1 | 1.0 |
 | False-positive rate | 0.0 |
-| Mean per-packet latency | about 206 µs (raw-byte re-parsing) |
-| Implied single-core throughput | about 4,850 packets per second |
+| Mean per-packet latency | about 686 µs (dissection and rules together) |
+| Implied single-core throughput | about 1,450 packets per second |
 
 #### 6.1.2 Stability across seeds
 
@@ -509,7 +509,7 @@ evidence.
   human-readable or JSON output per finding, plus a summary block on exit, with
   classification metrics when ground-truth labels are supplied.
 - The realistic benign generator (`attacker/benign_traffic.py`) produces the
-  eleven-category benign corpus of Section 6.1, including the awkward
+  twelve-category benign corpus of Section 6.1, including the awkward
   Unstructured-PDU and handover categories.
 - The naive baseline (`detector/baselines.py`) re-implements the four rules using
   only Scapy's default parsing, holding every design choice fixed except the
@@ -593,13 +593,13 @@ that a passing offline suite cannot replace.
 ## 9. Limitations and threats to validity
 
 - The corpus is synthetic, and the class balance is not realistic. The benign
-  corpus now spans eleven categories, two of them chosen to be awkward for the
+  corpus now spans twelve categories, two of them chosen to be awkward for the
   detector, and it is no longer a single flow shape. It is still synthetic,
   though, and its roughly 55% benign share does not reflect how overwhelmingly
   benign real N3 traffic is. A measured false-positive rate of 0.0 on this corpus
   is far more informative than the earlier single-flow measurement, but it does
   not put a bound on the false-positive rate under production class imbalance, or
-  against unusual-but-legitimate handset behaviour outside the eleven categories.
+  against unusual-but-legitimate handset behaviour outside the twelve categories.
   Testing against captured operator traffic remains future work, and is limited
   by the legal and privacy issues in Section 11.
 - R1's check is still a heuristic, now hardened but not cryptographic.
@@ -631,8 +631,8 @@ that a passing offline suite cannot replace.
   live multi-gNB core, and no roaming or network-slicing scenarios were
   exercised.
 - Performance was measured on a single core, on one lab VM, with no other load.
-  The figure of about 4,850 packets per second (Section 6.1) reflects the real
-  cost of re-parsing raw bytes for every packet, but it is not validated against
+  The figure of about 1,450 packets per second (Section 6.1) reflects the real
+  cost of dissecting and checking every packet, but it is not validated against
   production N3 packet rates, and no multi-core or sustained-load testing was
   done.
 - The live-run finding counts (Section 6.2) come from a single run, not a

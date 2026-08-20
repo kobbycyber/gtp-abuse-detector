@@ -56,9 +56,12 @@ def mk_teid_spoof(upf, teid, attacker_ip):
     return outer(upf, teid, attacker_ip) / IP(src="10.45.0.2", dst="8.8.8.8") / ICMP()
 
 
-def mk_pfcp_smuggle(upf, teid, gnb):
+def mk_pfcp_smuggle(upf, teid, gnb, rng=None):
+    # Use the caller's seeded Random when supplied. The module-level random was
+    # unseeded, which made an otherwise seeded corpus non-byte-reproducible.
+    r = rng if rng is not None else random.Random(0)
     return outer(upf, teid, gnb) / IP(src="10.45.0.2", dst=upf) / \
-           UDP(sport=random.randint(1024, 65535), dport=PFCP_PORT) / PFCP()
+           UDP(sport=r.randint(1024, 65535), dport=PFCP_PORT) / PFCP()
 
 
 def mk_ngap_smuggle(upf, teid, gnb):

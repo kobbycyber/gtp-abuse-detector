@@ -2,7 +2,7 @@
 
 An open-source, Dockerised testbed and **passive detection framework for GTP-U
 tunnel abuse**. It detects GTP-in-GTP nesting, TEID spoofing, and encapsulated
-control-plane smuggling (PFCP / NGAP) in the 5G/4G user plane — the abuse class
+control-plane smuggling (PFCP / NGAP) in the 5G/4G user plane, the abuse class
 that commercial GTP firewalls handle but no reproducible open tool does.
 
 > **Scope / ethics.** Everything here targets a self-contained lab on a private
@@ -17,34 +17,36 @@ that commercial GTP firewalls handle but no reproducible open tool does.
 |---|---|
 | `core/` | Open5GS all-in-one 5G core (AMF/SMF/UPF + support NFs) |
 | `ran/` | UERANSIM simulated gNB + UE (generates real GTP-U on N3) |
-| `detector/` | **The contribution** — passive Scapy detector + rules + metrics, plus a naive baseline (`baselines.py`) that quantifies the contribution |
+| `detector/` | **The contribution**, passive Scapy detector + rules + metrics, plus a naive baseline (`baselines.py`) that quantifies the contribution |
 | `attacker/` | Lab-only traffic: abuse generator, realistic benign generator (`benign_traffic.py`), crafted evasion suite (`evasions.py`) |
 | `eval/` | Reproducible benchmark (`benchmark.py`) → `metrics.json` + `RESULTS.md`: metrics, baseline comparison, FP ablation, multi-seed stability, evasions |
 
 ## Two ways to run
 
-### 1. Offline evaluation — no 5G core, fully reproducible (start here)
+### 1. Offline evaluation, no 5G core, fully reproducible (start here)
 
 This is the path that produces your thesis numbers. It needs only Python + Scapy.
 
 ```bash
 pip install scapy pytest
-make test      # 16 tests: abuse detected, realistic benign clean, evasions & baseline locked
+make test      # 19 tests: abuse detected, realistic benign clean, evasions, baseline & repro locked
 make eval      # comprehensive benchmark -> eval/RESULTS.md
 make evasions  # list the crafted evasion suite (what the detector must / can't catch)
 ```
 
-Reference result (primary seed 1337, 1,320-packet corpus with **eleven**
-benign traffic categories including adversarial Unstructured-PDU bytes and
-legitimate handovers): precision 1.0, recall 1.0, F1 1.0, false-positive rate
-0.0, stable across five seeds (σ = 0), ≈4,850 pkt/s single core on raw-byte
-re-dissection. The evaluation also reports a **naive-baseline comparison**
-(the baseline misses 100% of GTP-in-GTP — this is the contribution,
+Reference result (primary seed 1337, 1,320-packet corpus whose 720 benign
+packets span **twelve** traffic categories, including adversarial
+Unstructured-PDU bytes and legitimate handovers, plus 120 victim flows):
+precision 1.0, recall 1.0, F1 1.0, false-positive rate 0.0, stable across five
+seeds (σ = 0), ≈1,450 pkt/s single core measured over the full
+serialize, dissect, and evaluate cycle (dissection is ~76% of that cost on this
+host; timing the rules alone gives ≈6,000 pkt/s and is not a tap rate). The evaluation also reports a **naive-baseline comparison**
+(the baseline misses 100% of GTP-in-GTP, this is the contribution,
 quantified), a **false-positive ablation** tracing every residual FP to a
 single mitigated cause, and an **evasion suite** documenting the detector's
 blind spots explicitly. See `eval/RESULTS.md`.
 
-### 2. Live lab — full stack in Docker (run on your Proxmox VM)
+### 2. Live lab, full stack in Docker
 
 Needs a host with a real kernel, `/dev/net/tun`, and the `docker compose` plugin.
 
@@ -57,7 +59,7 @@ make lab-down
 ```
 
 The detector runs in the **core's network namespace**, so it taps the exact
-interface terminating N3 — the same place you'd put a passive tap in production.
+interface terminating N3, the same place you'd put a passive tap in production.
 
 ## Detection rules
 
@@ -71,7 +73,7 @@ interface terminating N3 — the same place you'd put a passive tap in productio
 R1 actively **re-parses the inner bytes**: after capture, Scapy's default GTP-U
 binding renders a nested GTP header as `Raw` (its payload heuristic only expects
 IPv4/IPv6), so a naive `haslayer()` check misses tunnel-in-tunnel abuse. See
-`docs/ARCHITECTURE.md` — this is a genuine passive-detection robustness finding.
+`docs/ARCHITECTURE.md`, this is a genuine passive-detection robustness finding.
 
 ## Repo layout
 
@@ -99,13 +101,13 @@ python3 viz/server.py            # while the lab is up
 
 Open **http://localhost:8090** for a live view: network topology, live
 packet/GTP-U counters, a per-rule findings tally, and a scrolling live
-findings feed — watch the N3 link flash when `make attack` fires. See
+findings feed, watch the N3 link flash when `make attack` fires. See
 `viz/README.md` for details.
 
 ## Notes on reproducibility
 
 Image tags drift. `.env` pins `UERANSIM_REF`; the core installs Open5GS from the
 maintained PPA. If a NF config schema changes upstream, the entrypoint rebinds
-only NGAP + GTP-U addresses and leaves the rest as packaged — pin full YAMLs in
+only NGAP + GTP-U addresses and leaves the rest as packaged, pin full YAMLs in
 `core/configs/` for an exact thesis appendix. The **offline eval path does not
 depend on the live core at all**, so your metrics stay reproducible regardless.
