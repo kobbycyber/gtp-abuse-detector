@@ -34,7 +34,7 @@ for the record.
 ## One-paragraph summary
 
 `gtpu-abuse-lab`'s passive GTP-U tunnel-abuse detector achieves precision
-1.0 / recall 1.0 / F1 1.0 / FPR 0.0 on a reproducible 800-packet labelled
+1.0 / recall 1.0 / F1 1.0 / FPR 0.0 on a reproducible 1,320-packet labelled
 corpus (no Docker required), and was further validated against a genuinely
 live Open5GS 5G core + UERANSIM RAN in Docker, where it caught 131 real
 findings across all four detection rules from traffic that was actually

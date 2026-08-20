@@ -40,58 +40,53 @@ python3 -m pytest tests/ -q
 cd ..
 ```
 
-Expected: `7 passed` — every abuse class (`R1`–`R4`) is detected on a
-hand-built in-memory packet, and `test_detector_survives_garbage` confirms a
-malformed GTP-U packet never raises.
+Expected: `19 passed` across five files. Every abuse class (`R1`–`R4`) is
+detected, `test_detector_survives_garbage` confirms a malformed GTP-U packet
+never raises, the realistic benign corpus produces no false positives, all
+eleven crafted evasions behave as documented, the naive baseline provably
+misses GTP-in-GTP, and the seeded corpus is byte-reproducible.
 
-### A.3 Generate the labelled corpus
+### A.3 Run the offline benchmark
 
 ```bash
-python3 attacker/generate_attacks.py \
-    --count 400 --benign 400 --seed 1337 \
-    --write captures/mixed.pcap \
-    --labels-out captures/mixed.labels.json
+python3 eval/run_eval.py
 ```
 
-This writes 800 packets (400 malicious across 5 classes, 400 benign ICMP) to
-`captures/mixed.pcap`, plus a JSON array of booleans in
-`captures/mixed.labels.json` aligned 1:1 to packet index. The `--seed 1337`
-makes this byte-for-byte reproducible.
+This one command produces every offline number in the paper. It builds the
+seeded 1,320-packet corpus (600 malicious spread evenly across the five attack
+classes, plus 720 benign across twelve traffic categories and 120 legitimate
+victim flows), scores it through the exact same `rules.py` engine used live,
+then runs the naive-baseline comparison, the false-positive ablation, the
+five-seed stability check and the evasion suite. It writes `eval/metrics.json`
+and `eval/RESULTS.md`. Everything is seeded, so the classification numbers are
+byte-for-byte reproducible.
 
-### A.4 Score the corpus offline
-
-```bash
-python3 detector/gtpu_detector.py pcap \
-    --file captures/mixed.pcap \
-    --labels captures/mixed.labels.json \
-    --core-ips 10.10.10.10,10.10.10.11 \
-    --metrics-out eval/metrics.json
-```
-
-This replays the pcap through the exact same `rules.py` engine used live,
-prints one JSON line per finding to stdout, then a final summary block to
-stdout and `eval/metrics.json`.
-
-### A.5 Render the results table
+### A.4 Read the results
 
 ```bash
-python3 eval/report.py eval/metrics.json > eval/RESULTS.md
 cat eval/RESULTS.md
 ```
 
-Expected numbers (see `RESULTS.md` for the full table):
-precision **1.0**, recall **1.0**, F1 **1.0**, false-positive rate **0.0**,
-mean per-packet latency **≈187 µs** → **≈5,300 pkt/s** single-core throughput
-on this host (a 2022-era Proxmox VM; expect this to scale with CPU clock).
+Expected: precision **1.0**, recall **1.0**, F1 **1.0**, false-positive rate
+**0.0**, each stable (standard deviation 0.0) across seeds `{1337, 1, 2, 3, 4}`;
+the naive baseline misses 100% of nested tunnels (F1 **0.889**); the evasion
+suite reports **6 caught / 5 documented blind spots / 0 mismatches**. Latency is
+host-dependent: about **686 µs**, roughly **1,450 pkt/s** single core on the
+evaluation VM, timed over dissection and rule evaluation together. Regenerate it
+on your own hardware before quoting it; the classification numbers do not move.
 
-### A.6 (Optional) vary the corpus
+### A.5 (Optional) vary the corpus, or inspect a single packet
 
 ```bash
-# Only nested-tunnel and PFCP-smuggling classes, larger corpus:
-python3 eval/run_eval.py --classes gtp_in_gtp,pfcp_smuggle --count 1000 --benign 1000
+# Smaller/larger corpus, different seeds (args: --seeds, --benign, --per-class):
+python3 eval/run_eval.py --seeds 1337,1,2 --benign 400 --per-class 200
 
-# Inspect one packet of a given class without writing anything:
+# Print one packet of a given attack class:
 python3 attacker/generate_attacks.py --class ngap_smuggle
+
+# Write a standalone legacy pcap for manual inspection in Wireshark:
+python3 attacker/generate_attacks.py --count 200 --benign 200 --seed 1337 \
+    --write captures/mixed.pcap --labels-out captures/mixed.labels.json
 ```
 
 ---
@@ -269,7 +264,7 @@ engine (not two divergent code paths):
 
 ```bash
 # Offline
-python3 eval/run_eval.py --count 400 --benign 400 --seed 1337
+python3 eval/run_eval.py
 cat eval/RESULTS.md
 
 # Live (Part B above), then compare which rules fired in both runs —

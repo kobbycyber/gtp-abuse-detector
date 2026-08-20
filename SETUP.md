@@ -184,12 +184,12 @@ make test
 **You should see:**
 
 ```
-16 passed
+19 passed
 ```
 
 That means: every attack class is detected, the realistic benign traffic stays
-clean, all 11 evasion cases behave exactly as documented, and the naive
-baseline provably misses GTP-in-GTP.
+clean, all 11 evasion cases behave exactly as documented, the naive baseline
+provably misses GTP-in-GTP, and the seeded corpus is byte-reproducible.
 
 ### 4c. Run the full evaluation
 
@@ -398,7 +398,7 @@ pkill -f viz/server.py
 
 You have fully reproduced the project if:
 
-- [ ] `make test` gives **16 passed**
+- [ ] `make test` gives **19 passed**
 - [ ] `make eval` gives **P=1.0 R=1.0 F1=1.0 FPR=0.0**, and naive **R1 recall 0.0**
 - [ ] `eval/RESULTS.md` shows the baseline comparison, ablation, and evasion tables
 - [ ] (live) the radio log shows NG Setup, Registration, PDU Session, and uesimtun0
@@ -491,7 +491,7 @@ flagging a tunnel re-sourced from an unknown IP.
   `teid_spoof`, `pfcp_smuggle`, `ngap_smuggle`, `inner_to_core`, plus a trivial
   benign class. It can write a labelled pcap (`--write`) or send live
   (`--send`). Everything is seeded for byte-for-byte reproducibility.
-- `benign_traffic.py` builds the realistic benign corpus: eleven traffic types
+- `benign_traffic.py` builds the realistic benign corpus: twelve traffic types
   (TLS, HTTP, DNS, QUIC, NTP, RTP/VoIP, ICMP, IPv6, fragmented IP, IP-options,
   plus the two deliberately hard ones: Unstructured-PDU bytes and legitimate
   handovers). This is what makes the measured false-positive rate meaningful
@@ -538,7 +538,7 @@ deployment. If your live bring-up misbehaves, read this file first.
 
 ```bash
 # --- offline (no Docker/root) ---
-make test            # 16 unit tests
+make test            # 19 unit tests
 make eval            # full benchmark -> eval/RESULTS.md
 make evasions        # list the evasion suite and verdicts
 cat eval/RESULTS.md  # read the results
