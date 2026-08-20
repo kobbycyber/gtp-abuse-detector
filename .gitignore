@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+captures/*.pcap
+captures/*.labels.json
+captures/*.classes.json
+captures/*.cats.json
+eval/metrics.json
+eval/RESULTS.md
+*.log
+.venv/
+.claude/

@@ -1,0 +1,80 @@
+name: gtpu-abuse-lab
+
+# Fixed /24 so every component has a stable address the configs can reference.
+networks:
+  lab:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.10.0/24
+
+volumes:
+  mongo-data:
+  captures:
+
+services:
+  mongo:
+    image: mongo:7
+    networks:
+      lab:
+        ipv4_address: 10.10.10.5
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ping:1}).ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  core:
+    build: ./core
+    env_file: .env
+    depends_on:
+      mongo:
+        condition: service_healthy
+    cap_add: [NET_ADMIN]
+    devices:
+      - /dev/net/tun
+    sysctls:
+      - net.ipv4.ip_forward=1
+    networks:
+      lab:
+        ipv4_address: 10.10.10.10
+    restart: unless-stopped
+
+  ran:
+    build: ./ran
+    env_file: .env
+    depends_on: [core]
+    cap_add: [NET_ADMIN]
+    devices:
+      - /dev/net/tun
+    networks:
+      lab:
+        ipv4_address: 10.10.10.20
+    restart: unless-stopped
+
+  # Detector shares the CORE network namespace, so it sniffs the very
+  # interface that terminates N3 / GTP-U -- exactly where you'd tap in prod.
+  detector:
+    build: ./detector
+    depends_on: [core]
+    network_mode: "service:core"
+    cap_add: [NET_ADMIN, NET_RAW]
+    volumes:
+      - captures:/captures
+    command: ["live", "--iface", "eth0", "--core-ips", "10.10.10.10,10.10.10.11", "--json"]
+    restart: unless-stopped
+
+  # Attacker is manual (profile). Run `make attack` to fire the corpus,
+  # or `make corpus` to just write a labelled pcap for offline scoring.
+  attacker:
+    build: ./attacker
+    profiles: ["tools"]
+    network_mode: "service:core"
+    cap_add: [NET_RAW]
+    volumes:
+      - captures:/captures
+    command: ["--count", "400", "--benign", "400",
+              "--write", "/captures/mixed.pcap",
+              "--labels-out", "/captures/mixed.labels.json"]

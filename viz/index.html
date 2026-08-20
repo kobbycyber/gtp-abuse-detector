@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GTP-U Abuse Lab — Live Detector</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+
+    --series-1: #2a78d6; /* R1 */
+    --series-2: #1baf7a; /* R2 */
+    --series-3: #eda100; /* R3 */
+    --series-4: #008300; /* R4 */
+
+    --status-good:     #0ca30c;
+    --status-warning:  #fab219;
+    --status-serious:  #ec835a;
+    --status-critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page-plane:     #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+
+      --series-1: #3987e5;
+      --series-2: #199e70;
+      --series-3: #c98500;
+      --series-4: #008300;
+
+      --status-good:     #0ca30c;
+      --status-warning:  #fab219;
+      --status-serious:  #ec835a;
+      --status-critical: #d03b3b;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page-plane:     #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+
+    --series-1: #3987e5;
+    --series-2: #199e70;
+    --series-3: #c98500;
+    --series-4: #008300;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page-plane);
+    color: var(--text-primary);
+  }
+  .viz-root { padding: 20px; max-width: 1180px; margin: 0 auto; }
+
+  .top-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; margin-bottom: 18px;
+  }
+  .top-bar h1 { font-size: 1.15rem; font-weight: 600; margin: 0; }
+  .top-bar .sub { color: var(--text-secondary); font-size: 0.85rem; margin-top: 2px; }
+
+  .controls { display: flex; align-items: center; gap: 10px; }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 600;
+    border: 1px solid var(--border); background: var(--surface-1);
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+  .status-pill.live .status-dot { background: var(--status-good); }
+  .status-pill.waiting .status-dot { background: var(--status-warning); }
+
+  button.theme-toggle {
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
+    border-radius: 8px; padding: 6px 10px; font-size: 0.8rem; cursor: pointer;
+  }
+
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px; margin-bottom: 16px;
+  }
+  .card h2 {
+    font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--text-secondary); margin: 0 0 12px 0; font-weight: 600;
+  }
+
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
+  .stat-tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .stat-tile .label { font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 6px; }
+  .stat-tile .value {
+    font-size: 1.9rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  }
+  .stat-tile .value.findings { color: var(--status-critical); }
+
+  /* ---- Topology ---- */
+  .topo-wrap { overflow-x: auto; }
+  svg#topo { width: 100%; height: 190px; display: block; min-width: 720px; }
+  .topo-node rect {
+    fill: var(--surface-1); stroke: var(--baseline); stroke-width: 1.5;
+  }
+  .topo-node text { fill: var(--text-primary); font-size: 12px; font-weight: 600; }
+  .topo-node .sub-label { fill: var(--text-muted); font-size: 10px; font-weight: 400; }
+  .topo-link { stroke: var(--baseline); stroke-width: 2; fill: none; }
+  .topo-link.pulse { stroke-width: 3; }
+  .topo-packet { fill: var(--series-1); }
+  .topo-tap-line { stroke: var(--text-muted); stroke-width: 1.5; stroke-dasharray: 3 3; }
+  .flash-label {
+    font-size: 11px; font-weight: 700; opacity: 0;
+  }
+
+  /* ---- Rule tally ---- */
+  .tally-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .tally-row:last-child { margin-bottom: 0; }
+  .tally-swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+  .tally-name { width: 190px; flex: none; font-size: 0.82rem; color: var(--text-secondary); }
+  .tally-track { flex: 1; height: 10px; background: var(--gridline); border-radius: 6px; overflow: hidden; }
+  .tally-fill { height: 100%; border-radius: 6px; width: 0%; transition: width 0.4s ease; }
+  .tally-count { width: 42px; flex: none; text-align: right; font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+
+  .table-toggle {
+    background: none; border: none; color: var(--text-secondary); font-size: 0.78rem;
+    cursor: pointer; text-decoration: underline; padding: 0; margin-top: 10px;
+  }
+  table.alt-table { display: none; width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.82rem; }
+  table.alt-table.shown { display: table; }
+  table.alt-table th, table.alt-table td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--gridline); }
+
+  /* ---- Feed ---- */
+  .feed-wrap { max-height: 360px; overflow-y: auto; }
+  table.feed { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  table.feed th {
+    position: sticky; top: 0; background: var(--surface-1);
+    text-align: left; padding: 6px 8px; color: var(--text-muted);
+    font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--gridline);
+  }
+  table.feed td {
+    padding: 6px 8px; border-bottom: 1px solid var(--gridline); vertical-align: top;
+    font-variant-numeric: tabular-nums;
+  }
+  table.feed tr.new-row { animation: fadein 1.2s ease; }
+  @keyframes fadein { from { background: var(--gridline); } to { background: transparent; } }
+
+  .sev-badge {
+    display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-size: 0.72rem;
+    padding: 2px 7px; border-radius: 999px;
+  }
+  .sev-badge .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .sev-critical { color: var(--status-critical); }
+  .sev-critical .dot { background: var(--status-critical); }
+  .sev-high { color: var(--status-serious); }
+  .sev-high .dot { background: var(--status-serious); }
+
+  .empty-state { color: var(--text-muted); font-size: 0.85rem; padding: 20px 4px; text-align: center; }
+
+  .legend-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px;
+    font-size: 0.8rem; color: var(--text-secondary);
+  }
+  .legend-grid b { color: var(--text-primary); }
+
+  @media (max-width: 720px) {
+    .stat-row { grid-template-columns: 1fr; }
+    .tally-name { width: 120px; }
+  }
+</style>
+</head>
+<body>
+<div class="viz-root">
+
+  <div class="top-bar">
+    <div>
+      <h1>GTP-U Abuse Lab — Live Detector</h1>
+      <div class="sub">Passive tap on N3 · mirrors detector/rules.py's live JSON output · observability only, no effect on detection</div>
+    </div>
+    <div class="controls">
+      <span id="statusPill" class="status-pill waiting"><span class="status-dot"></span><span id="statusText">waiting for detector…</span></span>
+      <button class="theme-toggle" id="themeToggle" type="button">Toggle theme</button>
+    </div>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat-tile">
+      <div class="label">Packets seen</div>
+      <div class="value" id="statPackets">0</div>
+    </div>
+    <div class="stat-tile">
+      <div class="label">GTP-U packets</div>
+      <div class="value" id="statGtpu">0</div>
+    </div>
+    <div class="stat-tile">
+      <div class="label">Findings raised</div>
+      <div class="value findings" id="statFindings">0</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Network path (N3, gNB ⇄ UPF)</h2>
+    <div class="topo-wrap">
+      <svg id="topo" viewBox="0 0 720 190" preserveAspectRatio="xMidYMid meet" aria-label="Network topology: UE to gNB to UPF to data network, with the detector passively tapping the UPF's namespace">
+        <!-- links -->
+        <path id="linkUeGnb" class="topo-link" d="M 95 95 L 195 95"></path>
+        <path id="linkN3" class="topo-link" d="M 245 95 L 415 95"></path>
+        <path id="linkUpfDn" class="topo-link" d="M 465 95 L 585 95"></path>
+        <path id="tapLine" class="topo-tap-line" d="M 440 95 L 440 150 L 440 150"></path>
+
+        <!-- traveling packet marker (animated along N3) -->
+        <circle id="pktMarker" class="topo-packet" r="4" cx="245" cy="95" opacity="0"></circle>
+
+        <!-- nodes -->
+        <g class="topo-node">
+          <rect x="20" y="70" width="75" height="50" rx="8"></rect>
+          <text x="57" y="93" text-anchor="middle">UE</text>
+          <text class="sub-label" x="57" y="108" text-anchor="middle">10.45.0.x</text>
+        </g>
+        <g class="topo-node">
+          <rect x="195" y="70" width="75" height="50" rx="8"></rect>
+          <text x="232" y="93" text-anchor="middle">gNB</text>
+          <text class="sub-label" x="232" y="108" text-anchor="middle">10.10.10.20</text>
+        </g>
+        <g class="topo-node">
+          <rect x="415" y="70" width="75" height="50" rx="8"></rect>
+          <text x="452" y="93" text-anchor="middle">UPF</text>
+          <text class="sub-label" x="452" y="108" text-anchor="middle">10.10.10.10</text>
+        </g>
+        <g class="topo-node">
+          <rect x="585" y="70" width="115" height="50" rx="8"></rect>
+          <text x="642" y="93" text-anchor="middle">Data network</text>
+          <text class="sub-label" x="642" y="108" text-anchor="middle">e.g. 8.8.8.8</text>
+        </g>
+        <g class="topo-node">
+          <rect x="400" y="150" width="105" height="34" rx="8"></rect>
+          <text x="452" y="171" text-anchor="middle" font-size="11">DETECTOR (tap)</text>
+        </g>
+
+        <text id="flashLabel" class="flash-label" x="452" y="145" text-anchor="middle"></text>
+
+        <text x="330" y="82" text-anchor="middle" font-size="10" fill="var(--text-muted)">N3 / GTP-U · UDP 2152</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Findings by rule</h2>
+    <div id="tallyBars">
+      <div class="tally-row" data-rule="R1_GTP_IN_GTP">
+        <span class="tally-swatch" style="background:var(--series-1)"></span>
+        <span class="tally-name">R1 · GTP-in-GTP</span>
+        <span class="tally-track"><span class="tally-fill" style="background:var(--series-1)"></span></span>
+        <span class="tally-count">0</span>
+      </div>
+      <div class="tally-row" data-rule="R2_TEID_SPOOF">
+        <span class="tally-swatch" style="background:var(--series-2)"></span>
+        <span class="tally-name">R2 · TEID spoof</span>
+        <span class="tally-track"><span class="tally-fill" style="background:var(--series-2)"></span></span>
+        <span class="tally-count">0</span>
+      </div>
+      <div class="tally-row" data-rule="R3_CP_SMUGGLING">
+        <span class="tally-swatch" style="background:var(--series-3)"></span>
+        <span class="tally-name">R3 · CP smuggling</span>
+        <span class="tally-track"><span class="tally-fill" style="background:var(--series-3)"></span></span>
+        <span class="tally-count">0</span>
+      </div>
+      <div class="tally-row" data-rule="R4_INNER_TO_CORE">
+        <span class="tally-swatch" style="background:var(--series-4)"></span>
+        <span class="tally-name">R4 · Inner-to-core</span>
+        <span class="tally-track"><span class="tally-fill" style="background:var(--series-4)"></span></span>
+        <span class="tally-count">0</span>
+      </div>
+    </div>
+    <button class="table-toggle" id="tallyTableToggle" type="button">View as table</button>
+    <table class="alt-table" id="tallyTable">
+      <thead><tr><th>Rule</th><th>Count</th></tr></thead>
+      <tbody>
+        <tr><td>R1 · GTP-in-GTP</td><td id="tRowR1">0</td></tr>
+        <tr><td>R2 · TEID spoof</td><td id="tRowR2">0</td></tr>
+        <tr><td>R3 · CP smuggling</td><td id="tRowR3">0</td></tr>
+        <tr><td>R4 · Inner-to-core</td><td id="tRowR4">0</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Live findings feed</h2>
+    <div class="feed-wrap">
+      <table class="feed" aria-live="polite">
+        <thead>
+          <tr><th>Time</th><th>Severity</th><th>Rule</th><th>Src → Dst</th><th>TEID</th><th>Detail</th></tr>
+        </thead>
+        <tbody id="feedBody"></tbody>
+      </table>
+      <div class="empty-state" id="feedEmpty">No findings yet — benign traffic stays silent by design.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Legend</h2>
+    <div class="legend-grid">
+      <div><b>R1 GTP-in-GTP</b> — a GTP header nested inside GTP-U user data (critical)</div>
+      <div><b>R2 TEID spoof</b> — a tunnel ID reused from a new source IP (high)</div>
+      <div><b>R3 CP smuggling</b> — PFCP/NGAP/GTP-C riding inside user-plane data (critical)</div>
+      <div><b>R4 Inner-to-core</b> — inner traffic aimed at a core NF, not the data network (high)</div>
+      <div><span class="sev-badge sev-critical"><span class="dot"></span>CRITICAL</span> — tunnel-layer abuse</div>
+      <div><span class="sev-badge sev-high"><span class="dot"></span>HIGH</span> — spoofing / misdirection</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var root = document.documentElement;
+  var themeToggle = document.getElementById("themeToggle");
+  themeToggle.addEventListener("click", function () {
+    var current = root.getAttribute("data-theme");
+    root.setAttribute("data-theme", current === "dark" ? "light" : "dark");
+  });
+
+  var RULE_META = {
+    R1_GTP_IN_GTP:    { row: "R1", tableCell: "tRowR1" },
+    R2_TEID_SPOOF:    { row: "R2", tableCell: "tRowR2" },
+    R3_CP_SMUGGLING:  { row: "R3", tableCell: "tRowR3" },
+    R4_INNER_TO_CORE: { row: "R4", tableCell: "tRowR4" },
+  };
+  var tallyCounts = { R1_GTP_IN_GTP: 0, R2_TEID_SPOOF: 0, R3_CP_SMUGGLING: 0, R4_INNER_TO_CORE: 0 };
+  var totalFindings = 0;
+
+  var statusPill = document.getElementById("statusPill");
+  var statusText = document.getElementById("statusText");
+  var statPackets = document.getElementById("statPackets");
+  var statGtpu = document.getElementById("statGtpu");
+  var statFindings = document.getElementById("statFindings");
+  var feedBody = document.getElementById("feedBody");
+  var feedEmpty = document.getElementById("feedEmpty");
+  var flashLabel = document.getElementById("flashLabel");
+  var pktMarker = document.getElementById("pktMarker");
+
+  var lastEventAt = 0;
+  function markAlive() {
+    lastEventAt = Date.now();
+    statusPill.className = "status-pill live";
+    statusText.textContent = "live";
+  }
+  setInterval(function () {
+    if (lastEventAt && Date.now() - lastEventAt > 8000) {
+      statusPill.className = "status-pill waiting";
+      statusText.textContent = "no recent activity — is the lab running?";
+    }
+  }, 2000);
+
+  function fmt(n) { return n.toLocaleString(); }
+
+  function updateTally(rule) {
+    if (!(rule in tallyCounts)) return;
+    tallyCounts[rule] += 1;
+    var max = Math.max.apply(null, Object.values(tallyCounts).concat([1]));
+    Object.keys(tallyCounts).forEach(function (r) {
+      var rowEl = document.querySelector('.tally-row[data-rule="' + r + '"]');
+      if (!rowEl) return;
+      var fill = rowEl.querySelector(".tally-fill");
+      var count = rowEl.querySelector(".tally-count");
+      var pct = Math.round((tallyCounts[r] / max) * 100);
+      fill.style.width = pct + "%";
+      count.textContent = fmt(tallyCounts[r]);
+      var meta = RULE_META[r];
+      if (meta) document.getElementById(meta.tableCell).textContent = fmt(tallyCounts[r]);
+    });
+  }
+
+  function severityBadge(sev) {
+    var cls = sev === "critical" ? "sev-critical" : "sev-high";
+    var label = sev === "critical" ? "CRITICAL" : "HIGH";
+    return '<span class="sev-badge ' + cls + '"><span class="dot"></span>' + label + '</span>';
+  }
+
+  var MAX_ROWS = 60;
+  function addFeedRow(ev) {
+    feedEmpty.style.display = "none";
+    var tr = document.createElement("tr");
+    tr.className = "new-row";
+    var time = new Date(ev.ts * 1000).toLocaleTimeString();
+    var teid = (ev.teid === null || ev.teid === undefined) ? "—" : "0x" + Number(ev.teid).toString(16);
+    tr.innerHTML =
+      "<td>" + time + "</td>" +
+      "<td>" + severityBadge(ev.severity) + "</td>" +
+      "<td>" + (RULE_META[ev.rule] ? RULE_META[ev.rule].row : ev.rule) + "</td>" +
+      "<td>" + (ev.src || "?") + " → " + (ev.dst || "?") + "</td>" +
+      "<td>" + teid + "</td>" +
+      "<td>" + (ev.detail || "") + "</td>";
+    feedBody.insertBefore(tr, feedBody.firstChild);
+    while (feedBody.children.length > MAX_ROWS) {
+      feedBody.removeChild(feedBody.lastChild);
+    }
+  }
+
+  function flashTopology(sev, ruleShort) {
+    var color = sev === "critical" ? "var(--status-critical)" : "var(--status-serious)";
+    ["linkUeGnb", "linkN3", "linkUpfDn"].forEach(function (id) {
+      var el = document.getElementById(id);
+      el.style.stroke = color;
+      el.classList.add("pulse");
+    });
+    document.getElementById("tapLine").style.stroke = color;
+    flashLabel.textContent = ruleShort;
+    flashLabel.style.fill = color;
+    flashLabel.style.opacity = 1;
+
+    pktMarker.setAttribute("fill", color);
+    pktMarker.style.opacity = 1;
+    var start = 245, end = 415, t0 = performance.now(), dur = 500;
+    function step(t) {
+      var p = Math.min(1, (t - t0) / dur);
+      pktMarker.setAttribute("cx", start + (end - start) * p);
+      if (p < 1) requestAnimationFrame(step);
+      else pktMarker.style.opacity = 0;
+    }
+    requestAnimationFrame(step);
+
+    setTimeout(function () {
+      ["linkUeGnb", "linkN3", "linkUpfDn"].forEach(function (id) {
+        var el = document.getElementById(id);
+        el.style.stroke = "";
+        el.classList.remove("pulse");
+      });
+      document.getElementById("tapLine").style.stroke = "";
+      flashLabel.style.opacity = 0;
+    }, 650);
+  }
+
+  var tallyTableToggle = document.getElementById("tallyTableToggle");
+  var tallyTable = document.getElementById("tallyTable");
+  var tallyBars = document.getElementById("tallyBars");
+  tallyTableToggle.addEventListener("click", function () {
+    var shown = tallyTable.classList.toggle("shown");
+    tallyBars.style.display = shown ? "none" : "block";
+    tallyTableToggle.textContent = shown ? "View as chart" : "View as table";
+  });
+
+  function connect() {
+    var es = new EventSource("/events");
+    es.onmessage = function (msg) {
+      var ev;
+      try { ev = JSON.parse(msg.data); } catch (e) { return; }
+      markAlive();
+      if (ev.type === "heartbeat") {
+        statPackets.textContent = fmt(ev.packets_seen || 0);
+        statGtpu.textContent = fmt(ev.gtpu_packets || 0);
+      } else if (ev.type === "finding") {
+        totalFindings += 1;
+        statFindings.textContent = fmt(totalFindings);
+        updateTally(ev.rule);
+        addFeedRow(ev);
+        var meta = RULE_META[ev.rule];
+        flashTopology(ev.severity, meta ? meta.row : "?");
+      }
+    };
+    es.onerror = function () {
+      // EventSource auto-reconnects; status pill degrades on its own via the
+      // 8s-since-last-event timer above.
+    };
+  }
+  connect();
+})();
+</script>
+</body>
+</html>
