@@ -44,7 +44,7 @@ quantified), a **false-positive ablation** tracing every residual FP to a
 single mitigated cause, and an **evasion suite** documenting the detector's
 blind spots explicitly. See `eval/RESULTS.md`.
 
-### 2. Live lab — full stack in Docker (run on your Proxmox VM)
+### 2. Live lab — full stack in Docker
 
 Needs a host with a real kernel, `/dev/net/tun`, and the `docker compose` plugin.
 
