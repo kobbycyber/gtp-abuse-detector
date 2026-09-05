@@ -9,3 +9,4 @@ eval/metrics.json
 eval/RESULTS.md
 *.log
 .venv/
+!captures/dissector_probe.pcap

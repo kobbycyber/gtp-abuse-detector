@@ -276,3 +276,44 @@ random seed / packet mix / live ARP-driven timing), but rule *coverage*
 should: every class the offline corpus exercises should also appear at least
 once in a live run of comparable size. See `RESULTS.md` §4 for the actual
 numbers from both runs used in this paper.
+
+---
+
+## Part D — Cross-dissector check (the R1 blind spot is not one library's defect)
+
+The nested-tunnel blind spot is a property of how tunnelled payloads are
+dispatched, not a Scapy bug. This reproduces it against Wireshark/tshark and
+Zeek from one small probe capture.
+
+Write the probe (three GTP-U packets over one outer 5-tuple: a bare-nested
+abuse packet, a benign inner-IP packet, and a control-plane-smuggle packet):
+
+```bash
+python3 attacker/dissector_probe.py --write captures/dissector_probe.pcap
+```
+
+**tshark.** The bare-nested frame does not match the `gtp` display filter and
+carries no `gtp.message`, while the benign and smuggle frames decode fully:
+
+```bash
+tshark -r captures/dissector_probe.pcap -Y gtp -T fields -e frame.number -e gtp.message
+```
+
+**Zeek** (run via the official container, so no local install is needed):
+
+```bash
+docker run --rm -v "$PWD/captures":/d -w /d zeek/zeek:latest \
+    zeek -C -r dissector_probe.pcap
+grep -c 'Tunnel::GTPv1.*DISCOVER' captures/tunnel.log     # -> 1 (the outer tunnel only)
+grep -v '^#' captures/conn.log | awk '{print $3" -> "$5":"$6" ("$7")"}'
+```
+
+Expected Zeek result: exactly **one** GTPv1 tunnel (the outer one, never a
+nested second tunnel); `conn.log` surfaces the inner connections of the benign
+packet (ICMP to `8.8.8.8`) and the smuggle packet (UDP to `8805`) via
+`tunnel_parents`, but the bare-nested packet's inner address (`10.45.0.1`)
+never appears and no `weird.log` is written. Zeek's GTP-U analyzer forwards the
+decapsulated payload to its IP analyzer, which rejects the nested GTP-U header
+as not a valid IP packet and drops it silently. Scapy, tshark and Zeek, three
+independently written implementations, therefore all miss the bare-nested form,
+which is the evidence behind `PAPER` / manuscript Section 7.3.
