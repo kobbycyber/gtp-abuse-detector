@@ -24,6 +24,11 @@ from __future__ import annotations
 from scapy.all import IP, IPv6, UDP, TCP, ICMP, Raw
 from scapy.contrib.gtp import GTP_U_Header, GTPHeader
 
+# Cases with expected_detect=False where silence is CORRECT behaviour rather
+# than a blind spot of the rule. Counted separately by the benchmark so the
+# reported blind-spot total is not inflated by a robustness result.
+CORRECT_SILENCE = {"r1_noise_no_inner_ip"}
+
 UPF = "10.10.10.10"
 SMF = "10.10.10.11"
 GNB = "10.10.10.20"

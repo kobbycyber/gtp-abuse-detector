@@ -70,7 +70,7 @@ cat eval/RESULTS.md
 Expected: precision **1.0**, recall **1.0**, F1 **1.0**, false-positive rate
 **0.0**, each stable (standard deviation 0.0) across seeds `{1337, 1, 2, 3, 4}`;
 the naive baseline misses 100% of nested tunnels (F1 **0.889**); the evasion
-suite reports **6 caught / 5 documented blind spots / 0 mismatches**. Latency is
+suite reports **6 caught / 1 correct silence / 4 documented blind spots / 0 mismatches**. Latency is
 host-dependent: about **686 µs**, roughly **1,450 pkt/s** single core on the
 evaluation VM, timed over dissection and rule evaluation together. Regenerate it
 on your own hardware before quoting it; the classification numbers do not move.

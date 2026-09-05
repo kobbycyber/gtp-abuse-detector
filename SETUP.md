@@ -202,7 +202,7 @@ make eval
 ```
 [+] robust : P=1.0 R=1.0 F1=1.0 FPR=0.0
 [+] naive  : P=1.0 R=0.8 F1=0.8889  (R1 recall 0.0)
-[+] evasions: 6 caught, 5 documented blind spots, 0 mismatches
+[+] evasions: 6 caught, 1 correct silence, 4 documented blind spots, 0 mismatches
 ```
 
 ### 4d. Read the results
@@ -514,7 +514,7 @@ flagging a tunnel re-sourced from an unknown IP.
 4. False-positive ablation: with vs without the known-gNB allowlist. Shows every
    residual false alarm comes from legitimate handovers, and that the allowlist
    removes them.
-5. Evasion suite: 6 caught, 5 documented blind spots, 0 surprises.
+5. Evasion suite: 6 caught, 1 correct silence, 4 documented blind spots, 0 surprises.
 6. Latency and throughput: per-packet cost and single-core packet rate.
 
 An examiner's natural questions ("did you test realistic benign traffic?", "what

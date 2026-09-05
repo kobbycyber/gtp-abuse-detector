@@ -106,7 +106,8 @@ from outside the pool.
 ### 3.4 Evasion suite
 
 11 crafted evasions: **6 robustness wins** (still caught despite the evasion),
-**5 documented blind spots** (inherent to a stateless user-plane-only rule),
+**1 correct-silence case** (GTP-looking noise the detector rightly ignores),
+**4 documented blind spots** (inherent to a stateless user-plane-only rule), and
 **0 mismatches** against the documented expectation.
 
 ### 3.5 Per-packet latency (single core, 1,320 packets, dissection included)
