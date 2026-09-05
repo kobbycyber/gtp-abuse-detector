@@ -451,11 +451,13 @@ one is labelled in advance with whether a correct detector should catch it, or
 whether it is an inherent blind spot of a stateless passive rule. Six are
 robustness wins, all still caught: an IPv6 inner tunnel, an outer
 extension-header offset shift, generic-GTP nesting, standard-port PFCP,
-SCTP/NGAP, and targeting a listed core function. Five are documented blind spots:
+SCTP/NGAP, and targeting a listed core function. Four are documented blind spots:
 a rogue that owns a never-seen TEID, a forged gNB source IP, PFCP moved off its
-usual port, and a core function outside the configured set. The suite checks that
-observed behaviour matches the labelled expectation on every case, so a change in
-either direction fails the build.
+usual port, and a core function outside the configured set. The remaining case is
+correct silence rather than a blind spot: GTP-looking noise that carries no
+routable inner IP, which the detector rightly leaves unflagged. The suite checks
+that observed behaviour matches the labelled expectation on every case, so a
+change in either direction fails the build.
 
 All of Section 6.1 is reproducible with two `pip install` commands and no Docker,
 root, or network, through `python3 eval/run_eval.py`.

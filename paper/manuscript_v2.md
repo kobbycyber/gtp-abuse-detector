@@ -458,7 +458,7 @@ Without the allowlist, R2 flags the second packet of each of the six two-packet 
 
 A detector tested only against attacks constructed to match its own rules will score perfectly by construction. To place a bound on that, eleven crafted evasions were built against the four rules, each annotated in advance with whether the detector is expected to catch it. Table 12 reports the outcome. The benchmark asserts that observed behaviour matches the documented expectation in every case and fails the build on any drift in either direction, so a new blind spot and a silently broken claimed catch are both regressions.
 
-**Table 12.** Evasion suite: six robustness wins, five documented blind spots, zero mismatches.
+**Table 12.** Evasion suite: six robustness wins, one correct-silence case, four documented blind spots, zero mismatches.
 
 | Evasion | Target | Expected | Observed | Rationale |
 |---|---|---|---|---|
@@ -474,7 +474,7 @@ A detector tested only against attacks constructed to match its own rules will s
 | `r4_unlisted_core_nf` | R4 | **no** | **no** | Inner destination is a core function absent from the configured set |
 | `r4_listed_core_nf` | R4 | detect | detect | Inner destination is a configured core function |
 
-The five blind spots are the honest cost of a stateless, user-plane-only, configuration-driven design, and they cluster in an informative way. R1 survives every structural mutation attempted against it, which is consistent with a nested tunnel having no legitimate explanation on N3. R3 survives protocol substitution but not port relocation, because it keys on ports. R2's two blind spots are both consequences of using the source IP address as the identity of a tunnel endpoint, which a spoofer controls. R4's blind spot is purely a completeness property of operator configuration. Section 5 identifies the extensions that would close each.
+The four blind spots are the honest cost of a stateless, user-plane-only, configuration-driven design, and they cluster in an informative way. R1 contributes none of them: it survives every structural mutation attempted against it, and its one expected non-detection, GTP-looking noise carrying no routable inner IP, is correct silence rather than a blind spot, consistent with a nested tunnel having no legitimate explanation on N3. R3 survives protocol substitution but not port relocation, because it keys on ports. R2's two blind spots are both consequences of using the source IP address as the identity of a tunnel endpoint, which a spoofer controls. R4's blind spot is purely a completeness property of operator configuration. Section 5 identifies the extensions that would close each.
 
 ### 4.7. Live full-stack validation
 
@@ -556,7 +556,7 @@ Comparing the study with previous related works, as shown in Table 16, the posit
 | Garg and Amaral Cejas (2026) | Signalling records | None | None | Consensus precision on synthetic anomalies | Operator data |
 | Samarakoon et al. (2022) | IP layer over 5G | Dataset | None | ML baselines | Yes |
 | Commercial GTP firewalls | User plane | Closed appliance | Vendor-stated | Not independently verifiable | Vendor-internal |
-| This study (gtpu-abuse-lab) | User plane (N3/GTP-U) | Testbed, detector, corpus, ablations, evasion suite | 4 rules over 5 classes | P 1.0, R 1.0, F1 1.0, FPR 0.0; naive baseline F1 0.889; 5 documented blind spots | Yes (Open5GS + UERANSIM) |
+| This study (gtpu-abuse-lab) | User plane (N3/GTP-U) | Testbed, detector, corpus, ablations, evasion suite | 4 rules over 5 classes | P 1.0, R 1.0, F1 1.0, FPR 0.0; naive baseline F1 0.889; 4 documented blind spots | Yes (Open5GS + UERANSIM) |
 
 Three observations follow from the results. First, a perfect score should still be read as evidence that the rules are correctly implemented against the abuse classes as generated, not as a claim about production performance; the corpus was constructed by the same project that wrote the rules, and Sections 4.4, 4.5 and 4.6 are the checks that partially offset this by measuring the contribution against a baseline, attributing every false positive to a cause, and stating what the rules cannot catch. Second, the value of the four rules is uneven. R1 and R3 encode structural violations that have no legitimate explanation on N3, and both correspond to attack paths independently demonstrated against real cores (Shaik et al., 2025); R2 and R4 encode assumptions that require, respectively, lifecycle awareness and complete operator configuration before they could be trusted in production, and the evasion suite shows exactly how they fail without them. Third, the case study of Section 4.9 is arguably the more transferable result, because it applies to any passive security tool, not only to GTP-U.
 

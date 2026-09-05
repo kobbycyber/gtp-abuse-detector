@@ -40,7 +40,7 @@ from baselines import naive_evaluate  # noqa: E402
 from metrics import Scoreboard  # noqa: E402
 import generate_attacks as ga  # noqa: E402
 from benign_traffic import benign_corpus  # noqa: E402
-from evasions import all_evasions  # noqa: E402
+from evasions import all_evasions, CORRECT_SILENCE  # noqa: E402
 
 CORE_IPS = {"10.10.10.10", "10.10.10.11"}
 KNOWN_GNBS = {"10.10.10.20", "10.10.10.21"}   # serving + target gNB (handover)
@@ -162,9 +162,13 @@ def run_evasions():
         rows.append({"name": name, "target_rule": rule, "expected_detect": expected,
                      "detected": got, "consistent": ok, "rationale": why})
     caught = sum(1 for r in rows if r["expected_detect"] and r["detected"])
-    blind = sum(1 for r in rows if not r["expected_detect"] and not r["detected"])
+    blind = sum(1 for r in rows if not r["expected_detect"] and not r["detected"]
+                and r["name"] not in CORRECT_SILENCE)
+    silence = sum(1 for r in rows if not r["expected_detect"] and not r["detected"]
+                  and r["name"] in CORRECT_SILENCE)
     return {"rows": rows, "mismatches": mismatches,
-            "robustness_wins": caught, "documented_blind_spots": blind}
+            "robustness_wins": caught, "documented_blind_spots": blind,
+            "correct_silence": silence}
 
 
 def main():
@@ -251,6 +255,7 @@ def main():
     print(f"[+] naive  : P={nb['precision']} R={nb['recall']} F1={nb['f1']}  "
           f"(R1 recall {naive['recall_by_class'].get('gtp_in_gtp')})")
     print(f"[+] evasions: {evasion['robustness_wins']} caught, "
+          f"{evasion['correct_silence']} correct silence, "
           f"{evasion['documented_blind_spots']} documented blind spots, "
           f"{evasion['mismatches']} mismatches")
     print(f"[+] metrics -> {a.metrics_out}")
