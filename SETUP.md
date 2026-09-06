@@ -422,6 +422,7 @@ You have fully reproduced the project if:
 | Dashboard reachable on the VM but not from another PC | A NAT IP (`192.168.112.x`) only reaches the VM and its host. From other machines use the lab's bridged/real-LAN IP. |
 | `pip3 install` refuses ("externally managed") | Use a virtualenv: `python3 -m venv .venv && source .venv/bin/activate && pip install scapy pytest`. |
 | `Cannot pull base images` | Pre-pull them: `docker pull mongo:7 ; docker pull ubuntu:22.04 ; docker pull python:3.12-slim`. |
+| `make build` fails with `apt-get` errors like `Temporary failure resolving deb.debian.org` (exit code 100) | The Docker **build** network cannot reach package mirrors (a common daemon-DNS gotcha on VMs/corporate networks). It does not affect the offline path. Build with host networking instead: `for s in core ran detector; do docker build --network=host -t gtp-abuse-detector-$s ./$s; done && docker build --network=host -t gtp-abuse-detector-attacker ./attacker`, then `make lab-up`. Or fix the daemon DNS (e.g. add `{"dns":["8.8.8.8"]}` to `/etc/docker/daemon.json` and restart Docker). |
 | `/dev/net/tun` missing | You are in a restricted environment. Use the offline path (Part 4), which needs none of this. |
 
 ---
