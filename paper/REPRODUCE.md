@@ -292,12 +292,31 @@ abuse packet, a benign inner-IP packet, and a control-plane-smuggle packet):
 python3 attacker/dissector_probe.py --write captures/dissector_probe.pcap
 ```
 
-**tshark.** The bare-nested frame does not match the `gtp` display filter and
-carries no `gtp.message`, while the benign and smuggle frames decode fully:
+**tshark** (Wireshark). If tshark is not installed locally, run it through a
+container by prefixing the command with
+`docker run --rm -v "$PWD/captures":/d nicolaka/netshoot ` and reading `/d/dissector_probe.pcap`.
+All three frames are recognised as GTP-U on the outer G-PDU, but the bare-nested
+frame's protocol stack **ends at that outer `gtp` layer**, while the benign and
+smuggle frames continue into their inner IP:
 
 ```bash
-tshark -r captures/dissector_probe.pcap -Y gtp -T fields -e frame.number -e gtp.message
+tshark -r captures/dissector_probe.pcap -T fields \
+    -e frame.number -e frame.protocols -e gtp.message
 ```
+
+Expected:
+
+```
+1   eth:ethertype:ip:udp:gtp              0xff
+2   eth:ethertype:ip:udp:gtp:ip:icmp      0xff
+3   eth:ethertype:ip:udp:gtp:ip:udp:pfcp  0xff
+```
+
+Every frame carries `gtp.message` `0xff` (a user-data G-PDU) and matches the
+`gtp` filter, so "does the frame contain a GTP-U layer" is not a sufficient
+check. What marks the abuse is that frame 1's stack stops at `gtp`: its nested
+inner tunnel is absorbed as an opaque T-PDU, with no second GTP layer and no
+inner IP, whereas frames 2 and 3 decode their inner IP natively.
 
 **Zeek** (run via the official container, so no local install is needed):
 
