@@ -82,7 +82,7 @@ passive-detection robustness finding.
 ## Repo layout
 
 ```
-gtpu-abuse-lab/
+gtp-abuse-detector/
 ├── docker-compose.yml     # wires the whole lab on 10.10.10.0/24
 ├── .env                   # PLMN, subscriber keys, addresses
 ├── Makefile               # make help

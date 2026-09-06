@@ -2,7 +2,7 @@
 
 This document gives the exact, manual, command-by-command procedure to reproduce
 every result in `PAPER.md` and `RESULTS.md` from a clean checkout of
-`gtpu-abuse-lab`. It intentionally does **not** rely on `make` targets — every
+`gtp-abuse-detector`. It intentionally does **not** rely on `make` targets — every
 command is spelled out so you can see (and adapt) exactly what runs. `make` is
 still the fast path day-to-day (`make test`, `make eval`, `make build`,
 `make lab-up`, `make attack`); this guide exists so results are reproducible
@@ -10,7 +10,7 @@ even without trusting the Makefile as a black box, and so every operational
 gotcha we hit is written down in one place.
 
 All commands assume your shell is at the repo root:
-`cd gtpu-abuse-lab`
+`cd gtp-abuse-detector`
 
 ---
 

@@ -148,9 +148,8 @@ test -e /dev/net/tun && echo "tun OK"
 
 ```bash
 cd ~
-git clone https://github.com/kobbycyber/gtpu-abuse-lab.git
-cd gtpu-abuse-lab
-git checkout v1.0          # the tested, released version this guide describes
+git clone https://github.com/kobbycyber/gtp-abuse-detector.git
+cd gtp-abuse-detector
 ```
 
 **You should see** the project files:
@@ -242,9 +241,9 @@ make build
 **You should see** it end with:
 
 ```
- Image gtpu-abuse-lab-ran Built
- Image gtpu-abuse-lab-core Built
- Image gtpu-abuse-lab-detector Built
+ Image gtp-abuse-detector-ran Built
+ Image gtp-abuse-detector-core Built
+ Image gtp-abuse-detector-detector Built
 ```
 
 ### 5b. Start the lab
@@ -312,7 +311,7 @@ make logs        # this streams the detector's findings; leave it running
 In a second terminal (same folder), fire the attack corpus:
 
 ```bash
-cd ~/gtpu-abuse-lab
+cd ~/gtp-abuse-detector
 make attack
 ```
 
