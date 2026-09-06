@@ -40,7 +40,7 @@ python3 -m pytest tests/ -q
 cd ..
 ```
 
-Expected: `19 passed` across five files. Every abuse class (`R1`–`R4`) is
+Expected: `21 passed` across five files. Every abuse class (`R1`–`R4`) is
 detected, `test_detector_survives_garbage` confirms a malformed GTP-U packet
 never raises, the realistic benign corpus produces no false positives, all
 eleven crafted evasions behave as documented, the naive baseline provably

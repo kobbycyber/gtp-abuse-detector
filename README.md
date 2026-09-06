@@ -29,7 +29,7 @@ This is the path that produces your thesis numbers. It needs only Python + Scapy
 
 ```bash
 pip install scapy pytest
-make test      # 19 tests: abuse detected, realistic benign clean, evasions, baseline & repro locked
+make test      # 21 tests: abuse detected, realistic benign clean, evasions, baseline & repro locked
 make eval      # comprehensive benchmark -> eval/RESULTS.md
 make evasions  # list the crafted evasion suite (what the detector must / can't catch)
 ```

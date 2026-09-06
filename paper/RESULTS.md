@@ -32,10 +32,10 @@ is exactly what you'd want to know is *not* happening here.
 
 ```
 cd detector && python3 -m pytest tests/ -q
-19 passed
+21 passed
 ```
 
-All 19 tests pass across five files: `test_rules.py` (one per rule, a benign
+All 21 tests pass across five files: `test_rules.py` (one per rule, a benign
 negative, a TEID-spoof sequence, malformed-packet robustness),
 `test_benign.py` (zero false positives on the realistic corpus; every residual
 FP without the gNB allowlist attributable only to handovers; Unstructured-PDU

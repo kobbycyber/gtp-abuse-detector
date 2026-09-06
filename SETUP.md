@@ -50,7 +50,7 @@ abuse, plus a lab to prove it works.
   legitimate non-IP payloads (5G "Unstructured" sessions).
 - A rigorous, honest evaluation rather than a single self-congratulatory score.
   It includes:
-  - a realistic benign corpus of 11 traffic types (TLS, DNS, QUIC, IPv6,
+  - a realistic benign corpus of twelve traffic types (TLS, DNS, QUIC, IPv6,
     fragments, handovers, and more) so the false-positive rate actually means
     something;
   - a naive-baseline comparison that proves the contribution: the naive detector
@@ -184,7 +184,7 @@ make test
 **You should see:**
 
 ```
-19 passed
+21 passed
 ```
 
 That means: every attack class is detected, the realistic benign traffic stays
@@ -398,7 +398,7 @@ pkill -f viz/server.py
 
 You have fully reproduced the project if:
 
-- [ ] `make test` gives **19 passed**
+- [ ] `make test` gives **21 passed**
 - [ ] `make eval` gives **P=1.0 R=1.0 F1=1.0 FPR=0.0**, and naive **R1 recall 0.0**
 - [ ] `eval/RESULTS.md` shows the baseline comparison, ablation, and evasion tables
 - [ ] (live) the radio log shows NG Setup, Registration, PDU Session, and uesimtun0
@@ -538,7 +538,7 @@ deployment. If your live bring-up misbehaves, read this file first.
 
 ```bash
 # --- offline (no Docker/root) ---
-make test            # 19 unit tests
+make test            # 21 unit tests
 make eval            # full benchmark -> eval/RESULTS.md
 make evasions        # list the evasion suite and verdicts
 cat eval/RESULTS.md  # read the results
