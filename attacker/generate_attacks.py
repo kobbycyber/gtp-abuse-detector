@@ -38,8 +38,15 @@ SCTP_PROTO = 132
 
 
 def outer(dst, teid, sport_ip):
+    # Force gtp_type=0xFF (G-PDU). Scapy derives the message type from the
+    # payload and only sets 0xFF for an IP payload, so an outer that carries a
+    # nested GTP-U header (mk_gtp_in_gtp) would otherwise serialise as
+    # message-type 0x00, which a real UPF and a content-validating dissector
+    # both reject. A realistic tunnel rides inside a valid G-PDU the UPF will
+    # decapsulate. For every other builder the payload is already IP, so this
+    # is a no-op there and only corrects the nested case.
     return IP(src=sport_ip, dst=dst) / UDP(sport=GTPU_PORT, dport=GTPU_PORT) / \
-           GTP_U_Header(teid=teid)
+           GTP_U_Header(gtp_type=0xFF, teid=teid)
 
 
 def mk_benign(upf, teid, gnb, ue_ip="10.45.0.2", dn="8.8.8.8"):

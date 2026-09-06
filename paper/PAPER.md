@@ -285,11 +285,20 @@ captured traffic goes through, so it cannot notice that parsing, as opposed to
 the in-memory object, loses this information.
 
 The fix (`_looks_like_gtp()`, `_reparse_inner()`, and `_carries_inner_ip()` in
-`rules.py`) actively re-reads any `Raw` payload sitting under a GTP-U layer. If
-the first byte's top three bits indicate GTP version 1 with the protocol-type bit
-set, and the second byte is a known GTP message type (a G-PDU, an echo request or
-response, and so on), the raw bytes are parsed again as a GTP header before the
-rule checks for nesting.
+`rules.py`) actively re-reads the inner payload's raw bytes whenever the default
+parse did not already yield a routable inner (an IPv4 or IPv6 packet) or a
+recognised GTP header. This detail matters more than it first appears. Scapy
+does not simply hand a nested GTP header back as `Raw`: which class it guesses
+depends on the outer message type. A nested header inside a realistic outer
+G-PDU, the form a UPF actually decapsulates, is guessed from its first byte and
+can come back as `Raw`, as `PPP`, or as another non-IP class, never as GTP.
+Keying the re-parse on the `Raw` class alone would catch only the packets a
+particular build of Scapy happens to leave as `Raw`; keying it on the bytes, as
+we do, catches the nested tunnel regardless of which wrong class the default
+parser assigned. If the first byte's top three bits indicate GTP version 1 with
+the protocol-type bit set, and the second byte is a known GTP message type (a
+G-PDU, an echo request or response, and so on), the bytes are parsed again as a
+GTP header before the rule checks for nesting.
 
 Two extra guards stop this from raising false alarms on harmless non-IP payloads.
 (5G "Unstructured" PDU sessions carry arbitrary bytes, and some of them happen to
@@ -488,13 +497,44 @@ one detection engine (Section 4.4), this is evidence that the offline numbers
 reflect genuine detection ability rather than a corpus quietly shaped to fit the
 detector's assumptions.
 
-### 6.4 Consistency across Scapy versions
+### 6.4 Consistency across dissectors
 
-The offline path ran under Scapy 2.4.4 on the host; the live path ran under Scapy
-2.7.0 inside the container. R1 fired correctly under both. Because the central
-finding in Section 5.1 is about a Scapy parsing edge case, confirming that the
-fix is not itself fragile across Scapy versions is a small but relevant piece of
-evidence.
+If the nested-tunnel blind spot were a quirk of one library, the contribution
+would be narrow. Three checks argue it is not.
+
+First, across Scapy versions: the offline path ran under Scapy 2.4.4 on the host
+and the live path under Scapy 2.7.0 in the container, and R1 fired under both.
+
+Second, against an independent dissector. We wrote a three-packet probe capture
+(`attacker/dissector_probe.py`): a bare-nested abuse packet, a benign packet
+with an inner IP payload, and a control-plane-smuggle packet, all carried inside
+a valid outer G-PDU. Read with Wireshark's `tshark`, all three frames are
+recognised as GTP-U on the outer tunnel, but the nested frame's protocol stack
+ends at that outer GTP-U: its inner bytes are absorbed as an opaque T-PDU, no
+second GTP layer and no inner IP appear, so a detector that asks whether a
+G-PDU's payload is itself GTP-U learns nothing. The benign and smuggle frames,
+by contrast, decode to their inner IP exactly as in Scapy.
+
+Third, against Zeek, a third and independently written network monitor. On the
+same probe, Zeek records exactly one GTPv1 tunnel, the outer one, and never a
+nested second tunnel. It decapsulates and logs the inner connections of the
+benign packet (an ICMP flow to the data network) and the smuggle packet (a UDP
+flow to the PFCP port) through its tunnel-parent field, but the nested packet
+produces no inner connection and not even a weird-log entry: Zeek forwards the
+decapsulated payload to its IP analyzer, which rejects the nested GTP-U header as
+not a valid IP packet and drops it silently.
+
+Three independently written implementations, each forwarding only a payload it
+recognises as IP, therefore all miss the bare-nested form. This is also why the
+re-parse keys on the raw bytes rather than on the class the default parser
+assigned (Section 5.1). A realistic outer G-PDU makes Scapy guess the nested
+bytes as `PPP`, not `Raw`, and an earlier version of the rule that only re-read
+`Raw` payloads missed exactly this realistic case until a probe with a valid
+outer message type exposed it, a small instance of the paper's own thesis that
+testing against realistic wire bytes finds what in-memory tests do not.
+`paper/REPRODUCE.md` Part D reproduces the whole check in a few commands.
+Extending it to closed vendor stacks is the obvious next step and is not done
+here.
 
 ---
 

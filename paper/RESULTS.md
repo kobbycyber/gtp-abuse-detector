@@ -216,15 +216,30 @@ wire. This is the strongest evidence in this project that the offline
 metrics in §3.1 are not an artifact of testing against packets the detector
 was implicitly designed around.
 
-## 5. Cross-version consistency (R1 rule)
+## 5. Cross-dissector consistency (R1 rule)
 
 The offline path ran under scapy 2.4.4; the live path ran under scapy 2.7.0
 inside the `detector` container (`detector/requirements.txt` pins
-`scapy==2.7.0`). Finding R1_GTP_IN_GTP hits under both (120 offline, 22 live)
-confirms the `_looks_like_gtp()` / `_reparse_inner()` re-parsing logic in
-`rules.py` (see `PAPER.md` §5.1) is not relying on scapy-version-specific
-dissection behavior, it works because it deliberately bypasses scapy's
-default GTP-U payload binding rather than depending on it.
+`scapy==2.7.0`). Finding R1_GTP_IN_GTP hits under both (120 offline, 22 live).
+
+The blind spot is not a Scapy quirk. A three-packet probe
+(`attacker/dissector_probe.py`; reproduced in `REPRODUCE.md` Part D) carries a
+bare-nested abuse packet, a benign inner-IP packet, and a control-plane-smuggle
+packet inside a realistic outer G-PDU. Read with `tshark` (Wireshark 4.x), all
+three frames decode as GTP-U on the outer tunnel, but the nested frame's stack
+ends there: its inner is an opaque T-PDU, no second GTP layer or inner IP
+appears, while the benign and smuggle frames decode their inner IP. Zeek 8.2.2
+records exactly one GTPv1 tunnel, logs the benign and smuggle inner connections
+via `tunnel_parents`, but produces no inner connection and no `weird.log` for the
+nested packet: it forwards the decapsulated payload to its IP analyzer, which
+rejects the nested GTP-U header as non-IP and drops it. Scapy, tshark and Zeek,
+three independent implementations, all miss the bare-nested form.
+
+Note that the realistic G-PDU outer is what makes this rigorous: under it Scapy
+guesses the nested bytes as `PPP`, not `Raw`, so `_reparse_inner()` keys on the
+raw bytes rather than on the `Raw` class (see `PAPER.md` §5.1). An earlier
+`Raw`-only version of the rule missed this realistic case until the probe
+exposed it.
 
 ## 6. Reproducibility bugs found and fixed
 

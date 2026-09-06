@@ -78,3 +78,25 @@ def test_detector_survives_garbage():
     junk = IP(src=GNB, dst=UPF) / UDP(sport=GTPU, dport=GTPU) / \
         GTP_U_Header(teid=0x9) / Raw(load=b"\xff\x00\xde\xad")
     evaluate(junk, st)  # must not raise
+
+
+def test_gtp_in_gtp_gpdu_outer():
+    """Nested tunnel inside a realistic G-PDU (0xFF) outer that a UPF would
+    decapsulate. Scapy guesses the nested bytes as a non-Raw class (PPP), so the
+    re-parse must key on the raw bytes, not on the 'Raw' class. This is the case
+    R1 originally missed until the corpus used a realistic outer message type."""
+    st = fresh_state()
+    outer = IP(src=GNB, dst=UPF) / UDP(sport=GTPU, dport=GTPU) / \
+        GTP_U_Header(gtp_type=0xFF, teid=0x1)
+    pkt = IP(bytes(outer / GTP_U_Header(gtp_type=0xFF, teid=0x1) /
+                   IP(src="10.45.0.2", dst="10.45.0.1") / ICMP()))
+    assert "R1_GTP_IN_GTP" in rules_hit(evaluate(pkt, st))
+
+
+def test_benign_gpdu_inner_ip_clean():
+    """A valid G-PDU carrying a real inner IP packet must not trip R1."""
+    st = fresh_state()
+    pkt = IP(bytes(IP(src=GNB, dst=UPF) / UDP(sport=GTPU, dport=GTPU) /
+                   GTP_U_Header(gtp_type=0xFF, teid=0x1) /
+                   IP(src="10.45.0.2", dst="8.8.8.8") / ICMP()))
+    assert "R1_GTP_IN_GTP" not in rules_hit(evaluate(pkt, st))

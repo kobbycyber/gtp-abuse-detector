@@ -87,16 +87,35 @@ def _carries_inner_ip(gtp) -> bool:
 
 
 def _reparse_inner(inner: Packet):
-    """If inner arrived as Raw but is actually a GTP header, re-dissect it."""
+    """Re-dissect an inner payload that is really a nested GTP header.
+
+    Scapy does not just hand back a nested GTP header as ``Raw``. Which class it
+    guesses depends on the outer message type and flags: a nested header inside
+    an outer *G-PDU* (the realistic abuse, where the UPF will decapsulate) is
+    guessed from the first payload byte and can come back as ``Raw``, ``PPP`` or
+    another non-IP class, none of which is a real inner packet. So we do not key
+    on ``Raw``: if Scapy already recognised a routable inner (IPv4/IPv6) or a
+    GTP header we keep it, and otherwise we re-check the actual bytes and
+    re-dissect them as GTP-U when they pass the plausibility gate. This is what
+    lets R1 catch the nested tunnel regardless of how the default dissector
+    mis-guessed its class (see tests/test_rules.py::test_gtp_in_gtp_gpdu_outer).
+    """
     if inner is None:
         return inner
-    if isinstance(inner, Raw) or inner.__class__.__name__ == "Raw":
-        buf = bytes(inner.load) if hasattr(inner, "load") else bytes(inner)
-        if _looks_like_gtp(buf):
-            try:
-                return GTP_U_Header(buf)
-            except Exception:
-                return inner
+    if isinstance(inner, (IP, IPv6, GTP_U_Header, GTPHeader)):
+        return inner
+    # Reserialise the whole guessed layer, not its .load: when Scapy mis-guesses
+    # the nested bytes as e.g. PPP it consumes the first bytes as a header, so
+    # .load would be missing the nested GTP header itself.
+    try:
+        buf = bytes(inner)
+    except Exception:
+        return inner
+    if _looks_like_gtp(buf):
+        try:
+            return GTP_U_Header(buf)
+        except Exception:
+            return inner
     return inner
 
 # Well-known control-plane UDP ports that must NEVER ride inside GTP-U user data.

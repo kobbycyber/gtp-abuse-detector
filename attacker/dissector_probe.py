@@ -48,13 +48,19 @@ def _frame(pkt):
 
 
 def _outer(gnb, upf, teid):
+    # gtp_type=0xFF (G-PDU) is forced explicitly: Scapy derives the message type
+    # from the payload and only sets 0xFF for an IP payload, so a GTP-U header
+    # placed directly inside another would otherwise serialise as message-type
+    # 0x00, which a real UPF (and a content-validating dissector) would reject.
+    # A realistic nested-tunnel abuse rides inside a valid G-PDU the UPF will
+    # decapsulate, so both the outer and the nested header are G-PDUs here.
     return IP(src=gnb, dst=upf) / UDP(sport=GTPU_PORT, dport=GTPU_PORT) / \
-        GTP_U_Header(teid=teid)
+        GTP_U_Header(gtp_type=0xFF, teid=teid)
 
 
 def build(gnb="10.10.10.20", upf="10.10.10.10", ue="10.45.0.2"):
     return [
-        _frame(_outer(gnb, upf, 0x101) / GTP_U_Header(teid=0x101) /
+        _frame(_outer(gnb, upf, 0x101) / GTP_U_Header(gtp_type=0xFF, teid=0x101) /
                IP(src=ue, dst="10.45.0.1") / ICMP()),          # bare-nested (R1)
         _frame(_outer(gnb, upf, 0x102) / IP(src=ue, dst="8.8.8.8") / ICMP()),  # benign
         _frame(_outer(gnb, upf, 0x103) / IP(src=ue, dst=upf) /

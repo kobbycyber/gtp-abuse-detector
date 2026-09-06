@@ -29,16 +29,26 @@ UPF's interface — the realistic tap point — with no port mirroring hacks.
 
 Scapy binds a GTP-U G-PDU payload to IPv4/IPv6 by inspecting the first nibble.
 A **nested** GTP header (`0x30`–`0x3f`) matches neither, so after `rdpcap()` /
-live capture the inner tunnel deserialises as `Raw`, and `pkt.haslayer(GTP_U_Header)`
-on the inner layer returns false. A passive detector reading real bytes must
-therefore actively re-interpret the payload:
+live capture the inner tunnel deserialises as a non-IP layer and
+`pkt.haslayer(GTP_U_Header)` on the inner returns false. Which non-IP class
+Scapy picks depends on the outer message type: a bare outer leaves the nested
+bytes as `Raw`, but a realistic outer **G-PDU** (the form a UPF decapsulates)
+makes Scapy guess `PPP`. So the re-parse keys on the raw *bytes*, not on the
+`Raw` class:
 
 ```
 _looks_like_gtp(buf):   version==1 AND PT set AND msg_type known
                         AND length field consistent (8 + len == datagram size)
-_reparse_inner():       if Raw and looks_like_gtp -> GTP_U_Header(buf)
+_reparse_inner():       if inner is not IP/IPv6/GTP: re-check bytes(inner);
+                        if looks_like_gtp -> GTP_U_Header(bytes(inner))
 _carries_inner_ip(g):   nested header must forward a routable inner IPv4/IPv6
 ```
+
+A `Raw`-only version of `_reparse_inner()` silently missed the realistic
+G-PDU-outer case (Scapy returned `PPP`) until a probe capture with a valid outer
+message type exposed it; the byte-level re-parse catches both. `tshark` and Zeek
+exhibit the same first-byte blind spot on that probe (`paper/REPRODUCE.md`
+Part D).
 
 The last two conditions are hardening added after a realistic benign corpus
 (`attacker/benign_traffic.py`) exposed a false positive: 5G *Unstructured* PDU

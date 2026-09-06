@@ -71,9 +71,13 @@ interface terminating N3, the same place you'd put a passive tap in production.
 | R4 | `INNER_TO_CORE` | high | inner IP aimed at a core NF, not the data network |
 
 R1 actively **re-parses the inner bytes**: after capture, Scapy's default GTP-U
-binding renders a nested GTP header as `Raw` (its payload heuristic only expects
-IPv4/IPv6), so a naive `haslayer()` check misses tunnel-in-tunnel abuse. See
-`docs/ARCHITECTURE.md`, this is a genuine passive-detection robustness finding.
+binding renders a nested GTP header as a non-IP layer (its payload heuristic only
+expects IPv4/IPv6), so a naive `haslayer()` check misses tunnel-in-tunnel abuse.
+Which non-IP class Scapy guesses depends on the outer message type (`Raw` for a
+bare outer, `PPP` for a realistic G-PDU outer), so the re-parse keys on the raw
+bytes, not on the class. `tshark` and Zeek exhibit the same blind spot; see
+`paper/REPRODUCE.md` Part D and `docs/ARCHITECTURE.md`. This is a genuine
+passive-detection robustness finding.
 
 ## Repo layout
 
