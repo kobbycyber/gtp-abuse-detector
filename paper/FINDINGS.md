@@ -695,9 +695,11 @@ same handover raised a single alert, because ownership moved with it.
 **Verified post-fix.**
 
 - `make test` gives 24 passed, up from 21. Three tests are new:
-  `test_teid_spoof_rogue_cannot_take_ownership` (spoofs interleaved with
-  the owner's packets on one TEID), `test_teid_scoped_by_receiving_endpoint`
-  (uplink and downlink on the same TEID number) and
+  `test_teid_spoof_rogue_cannot_take_ownership` (spoofs interleaved with the
+  owner's packets on one TEID, and an allowlisted gNB reclaiming a tunnel a
+  rogue was seen on first), `test_teid_scoped_by_receiving_endpoint` (uplink
+  and downlink on the same TEID number, and ownership read from the outer
+  header over IPv6 transport) and
   `test_live_attack_corpus_scores_clean` (the exact `make attack` corpus
   must score with no false positive and no false negative).
   `test_naive_and_robust_agree_on_non_reparse_rules` in `test_baseline.py`

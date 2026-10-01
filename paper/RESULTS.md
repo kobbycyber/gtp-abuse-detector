@@ -50,9 +50,12 @@ All 24 tests pass across five files:
   (`test_gtp_in_gtp_gpdu_outer`, `test_benign_gpdu_inner_ip_clean`), and three
   R2 tests added with the ownership fix:
   `test_teid_spoof_rogue_cannot_take_ownership` (spoofs interleaved with the
-  owner's traffic on one TEID are all flagged and the owner never is),
+  owner's traffic on one TEID are all flagged and the owner never is; an
+  allowlisted gNB reclaims a tunnel a rogue was seen on first),
   `test_teid_scoped_by_receiving_endpoint` (the same TEID number in uplink and
-  downlink does not conflict, and a spoof of the uplink tunnel still fires), and
+  downlink does not conflict, a spoof of the uplink tunnel still fires, and over
+  IPv6 transport ownership comes from the outer header, not the inner packet),
+  and
   `test_live_attack_corpus_scores_clean` (the exact corpus `make attack` sends
   scores with no false positive and no false negative).
 - `test_benign.py` (4 tests): zero false positives on the realistic corpus;

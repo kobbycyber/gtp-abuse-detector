@@ -119,7 +119,7 @@ core instead of a static packet capture of unknown origin.
    three things a bare score omits: a naive-baseline comparison that measures the
    contribution, a false-positive analysis that traces every remaining false
    alarm to one cause and then removes it, and an evasion suite that states the
-   detector's blind spots plainly. All of it runs with two `pip install` commands
+   detector's blind spots plainly. All of it runs with a single `pip install scapy pytest`
    and no root or Docker.
 3. A methodological finding built into the detector (rule R1, Section 5.1).
    Scapy's default parsing of a GTP-U payload never decodes a nested GTP header
@@ -527,7 +527,7 @@ routable inner IP, which the detector rightly leaves unflagged. The suite checks
 that observed behaviour matches the labelled expectation on every case, so a
 change in either direction fails the build.
 
-All of Section 6.1 is reproducible with two `pip install` commands and no Docker,
+All of Section 6.1 is reproducible with a single `pip install scapy pytest` and no Docker,
 root, or network, through `python3 eval/run_eval.py`.
 
 ### 6.2 Live full-stack validation

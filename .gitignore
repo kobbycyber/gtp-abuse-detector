@@ -11,3 +11,4 @@ eval/RESULTS.md
 .venv/
 !captures/dissector_probe.pcap
 captures/*.metrics.json
+.~lock.*#

@@ -458,7 +458,7 @@ Table 11 and Fig. 6 report the only configuration in which the detector produces
 
 **Fig. 6.** False positives with and without the known-gNB allowlist.
 
-Without the allowlist, R2 flags the second packet of each of the six two-packet handover pairs, because the same uplink TEID arrives from a new source address. This is not a defect in the rule so much as a statement of what a user-plane-only view can and cannot resolve: on N3 alone, an Xn handover and a TEID spoof are the same event. Supplying the operator's known-gNB set resolves it, because a handover moves a TEID between two addresses that are both in the set while a spoof re-sources it from an address that is not. The mitigation is therefore an operator input rather than a cleverer heuristic, and its dependence on a complete and current gNB inventory is a deployment cost, stated in Section 4.10.
+Without the allowlist, R2 flags the second packet of each of the six two-packet handover pairs, because the same uplink TEID arrives from a new source address. This is not a defect in the rule so much as a statement of what a user-plane-only view can and cannot resolve: on N3 alone, an Xn handover and a TEID spoof are the same event. Supplying the operator's known-gNB set resolves it, because R2 lets an allowlisted gNB take ownership silently, and a handover's new source is in the set while a spoof's source is not. The mitigation is therefore an operator input rather than a cleverer heuristic, and its dependence on a complete and current gNB inventory is a deployment cost, stated in Section 4.10.
 
 ### 4.6. Adversarial robustness: the evasion suite
 

@@ -22,7 +22,9 @@ Healthy signs:
   `ogs_tun_write() failed` lines.
 - `ran` logs show `NG Setup procedure is successful` then a UE registration and a PDU session,
   and a `uesimtun0` interface with a `10.45.0.x` address.
-- `detector` prints JSON lines only when abuse is present (benign traffic is quiet).
+- `detector` prints a JSON heartbeat line every two seconds (with a running
+  `packets_seen`) and a JSON finding line only when abuse is present; benign
+  traffic raises no findings.
 
 Generate user traffic (proves N3 is live), from inside the RAN container:
 
@@ -107,5 +109,6 @@ python3 attacker/generate_attacks.py --class ngap_smuggle   # inspect one packet
    `test_detector_survives_garbage`).
 5. **Live vs. offline parity** — compare live `make attack` findings with
    `make live-score`, which writes and scores the identical corpus offline. On
-   the run before the R2 fix, all 608 live findings matched the offline pass in
-   order and content (rule, source, destination, TEID, detail).
+   both live runs, all 608 findings before the R2 fix and all 550 after it, the
+   live stream matched the offline pass in order and content (rule, source,
+   destination, TEID, detail).
