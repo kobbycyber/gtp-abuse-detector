@@ -34,6 +34,16 @@ score: ## Score an existing captures/mixed.pcap (legacy single-run path)
 		--core-ips 10.10.10.10,10.10.10.11 --gnb-ips 10.10.10.20,10.10.10.21 \
 		--metrics-out eval/metrics.json
 
+.PHONY: live-score
+live-score: ## Write the exact `make attack` corpus with labels and score it per packet
+	python3 attacker/generate_attacks.py --count 400 --benign 100 \
+		--upf 10.10.10.10 --smf 10.10.10.11 --gnb 10.10.10.20 \
+		--write captures/live_corpus.pcap --labels-out captures/live_corpus.labels.json
+	python3 detector/gtpu_detector.py pcap --file captures/live_corpus.pcap \
+		--labels captures/live_corpus.labels.json \
+		--core-ips 10.10.10.10,10.10.10.11 --gnb-ips 10.10.10.20,10.10.10.21 \
+		--metrics-out captures/live_corpus.metrics.json
+
 # ---------------------------------------------------------------------------
 # Live lab path (Docker) — runs on a host with a real kernel (your Proxmox VM).
 # ---------------------------------------------------------------------------

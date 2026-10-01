@@ -56,3 +56,12 @@ def test_naive_and_robust_agree_on_non_reparse_rules():
     pkt = _wire(ga.mk_ngap_smuggle(UPF, 0x2, GNB))
     assert "R3_CP_SMUGGLING" in {f.rule for f in evaluate(pkt, _state())}
     assert "R3_CP_SMUGGLING" in {f.rule for f in naive_evaluate(pkt, _state())}
+    # R2 reads only the outer header, so both must also agree on interleaved
+    # spoofs: every spoof flagged, the legitimate owner never.
+    seq = [ga.mk_benign(UPF, 0x3, GNB), ga.mk_teid_spoof(UPF, 0x3, "10.10.10.66"),
+           ga.mk_teid_spoof(UPF, 0x3, "10.10.10.66"), ga.mk_benign(UPF, 0x3, GNB)]
+    for detect in (evaluate, naive_evaluate):
+        st = _state()
+        st.known_gnb_ips = {GNB, "10.10.10.21"}
+        hits = ["R2_TEID_SPOOF" in {f.rule for f in detect(_wire(p), st)} for p in seq]
+        assert hits == [False, True, True, False]

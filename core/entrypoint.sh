@@ -67,6 +67,20 @@ if [ ! -c /dev/net/tun ]; then
     mknod /dev/net/tun c 10 200 || true
 fi
 
+# --- UE data path: give the UPF's TUN device the UE-pool gateway address and
+# NAT the pool out of eth0. Outside a container the packaged systemd-networkd
+# unit does this; here nothing does, and without it the UPF decapsulates
+# uplink GTP-U and then fails ogs_tun_write(), so no UE packet reaches the
+# data network and no reply comes back.
+UE_SUBNET="${UE_SUBNET:-10.45.0.0/16}"
+UE_GW="${UE_GW:-10.45.0.1/16}"
+ip tuntap add name ogstun mode tun 2>/dev/null || true
+ip addr replace "${UE_GW}" dev ogstun
+ip link set ogstun up
+iptables -t nat -C POSTROUTING -s "${UE_SUBNET}" ! -o ogstun -j MASQUERADE 2>/dev/null || \
+    iptables -t nat -A POSTROUTING -s "${UE_SUBNET}" ! -o ogstun -j MASQUERADE
+echo "[core] ogstun ${UE_GW} up, NAT for ${UE_SUBNET}"
+
 echo "[core] starting NFs"
 open5gs-nrfd  & sleep 1
 open5gs-scpd  & sleep 1

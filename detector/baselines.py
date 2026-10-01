@@ -21,7 +21,7 @@ from scapy.all import IP, IPv6, UDP, Packet
 from scapy.contrib.gtp import GTP_U_Header, GTPHeader
 
 from rules import (
-    DetectorState, Finding,
+    DetectorState, Finding, outer_net,
     PFCP_PORT, GTPC_PORT, GTPU_PORT, SCTP_PROTO,
 )
 
@@ -53,19 +53,23 @@ def naive_gtp_in_gtp(pkt: Packet, state: DetectorState) -> list:
 def naive_teid_spoof(pkt: Packet, state: DetectorState) -> list:
     # R2 needs no inner re-parse -- it works on the outer header only, so the
     # naive and robust versions are identical here (kept for a fair comparison).
-    if not pkt.haslayer(GTP_U_Header) or not pkt.haslayer(IP):
+    if not pkt.haslayer(GTP_U_Header):
+        return []
+    net = outer_net(pkt)
+    if net is None:
         return []
     teid = int(pkt[GTP_U_Header].teid)
-    src = pkt[IP].src
-    owner = state.teid_owner.get(teid)
+    src, dst = net.src, net.dst
+    key = (dst, teid)
+    owner = state.teid_owner.get(key)
     if owner is None:
-        state.teid_owner[teid] = src
+        state.teid_owner[key] = src
         return []
     if owner != src:
-        state.teid_owner[teid] = src
-        if state.known_gnb_ips and state.is_known_gnb(src) and state.is_known_gnb(owner):
+        if state.known_gnb_ips and state.is_known_gnb(src):
+            state.teid_owner[key] = src
             return []
-        return [Finding("R2_TEID_SPOOF", "high", src, pkt[IP].dst, teid,
+        return [Finding("R2_TEID_SPOOF", "high", src, dst, teid,
                         "naive: TEID owner change")]
     return []
 

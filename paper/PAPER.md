@@ -38,17 +38,29 @@ misses every nested tunnel, it traces each remaining false positive to one cause
 detector cannot catch in an explicit evasion suite.
 
 We then validate the same detector against a genuinely live 5G core and radio
-inside Docker. Fired with real packets sent over a raw socket rather than
-replayed from a file, it produced 131 correct findings across all four rules.
+inside Docker. A 500-packet labelled corpus was sent over a raw socket rather
+than replayed from a file, and all four rules fired on it. The live findings
+stream matched an offline pass over the same packets finding for finding, so the
+run could be scored packet by packet. Scored that way, it gave 608 findings with
+precision 0.960, recall 0.9625, and a false-positive rate of 0.16, and every
+error traced back to a defect in the TEID-spoofing rule. With the rule fixed, a
+second live run of the same packet sequence gave 550 findings, precision and
+recall of 1.0, and a false-positive rate of 0.0. A live figure published in an earlier version of
+this paper (131 findings) did not reproduce and is withdrawn.
 
 Finally, the paper reports a lesson about testing. Bringing the live system up
 for the first time exposed five real bugs, including one where the traffic
 generator had been sending malformed Ethernet frames on every live run since the
-project began. None of these bugs were reachable by the existing, fully passing
-offline tests. We argue this is structural rather than accidental. For tools
-that work on raw network bytes, an in-memory or file-replay test suite is
-necessary but not sufficient, because the bugs that matter most only appear when
-bytes are actually put on, or read off, a real wire.
+project began. The labelled live run exposed two more: the handset's traffic
+had never reached the data network although the documented check for it passed,
+and the TEID-spoofing rule let a spoofer take a tunnel over. None of these seven
+bugs showed up in the existing, fully passing offline tests. Six sit in code
+those tests never run, and we argue this is structural rather than accidental:
+for tools that work on raw network bytes, an in-memory or file-replay test suite
+is necessary but not sufficient, because the bugs that matter most only appear
+when bytes are actually put on, or read off, a real wire. The seventh needed
+only a realistic packet order, which the live corpus supplied and a file replay
+now reproduces.
 
 ---
 
@@ -110,23 +122,30 @@ core instead of a static packet capture of unknown origin.
    detector's blind spots plainly. All of it runs with two `pip install` commands
    and no root or Docker.
 3. A methodological finding built into the detector (rule R1, Section 5.1).
-   Scapy's default parsing of a GTP-U payload quietly treats a nested GTP header
-   as opaque `Raw` bytes. A naive `haslayer()` check on captured or live traffic
-   therefore misses 100% of nested-tunnel abuse, even though an in-memory unit
-   test that builds the layers directly in Python would pass. Section 6.1.3
-   measures this: an otherwise identical naive detector scores 0.0 recall on
-   nested tunnels where the real detector scores 1.0.
+   Scapy's default parsing of a GTP-U payload never decodes a nested GTP header
+   as GTP: it hands the bytes back as `Raw` or, inside a realistic outer G-PDU,
+   mis-reads them as `PPP`. A naive `haslayer()` check on captured or live
+   traffic therefore misses 100% of nested-tunnel abuse, even though an
+   in-memory unit test that builds the layers directly in Python would pass.
+   Section 6.1.3 measures this: an otherwise identical naive detector scores 0.0
+   recall on nested tunnels where the real detector scores 1.0.
 4. Live validation of the same detector against real, transmitted (not replayed)
    5G traffic (Section 6.2), confirming that the same rules fire as in the
-   offline test.
+   offline test, and a per-packet scoring of that live run against its labels.
+   The live findings match an offline pass over the same packets finding for
+   finding.
 5. A documented case study (Section 8, with full detail in `FINDINGS.md`) of
-   five real bugs: a missing runtime dependency, a config-patching regex that
-   quietly does nothing while logging success, a lost file permission in a
-   multi-stage container build, a Docker Compose networking trap, and, most
-   importantly, a traffic generator that had been sending malformed Ethernet
-   frames on every live run since the project began. All five were found only by
-   running the live path, and none were reachable from the existing, fully
-   passing offline tests.
+   seven real bugs. Five were found at first bring-up: a missing runtime
+   dependency, a config-patching regex that quietly does nothing while logging
+   success, a lost file permission in a multi-stage container build, a Docker
+   Compose networking trap, and, most importantly, a traffic generator that had
+   been sending malformed Ethernet frames on every live run since the project
+   began. Two more were found during revision by scoring a live run packet by
+   packet: the UE data path had never worked while the documented check for it
+   passed, and rule R2 handed a TEID to whichever source sent last. All seven
+   were found only by running the live path. Six of them sit in code the offline
+   tests never run; the seventh sits in code they do run, but needs a packet
+   order their corpus never produces.
 
 ---
 
@@ -156,9 +175,12 @@ TEID to a subscriber.
 
 The testbed assumes an attacker who can inject arbitrary UDP packets onto the N3
 segment. This is the position a compromised or rogue gNB, a misconfigured roaming
-partner, or a network insider would hold. It does not assume an attacker who has
-taken over the UPF or SMF itself, which is a stronger and different problem, and
-it does not cover radio-layer attacks on the air interface. The detector is a
+partner, or a network insider would hold. In the live lab this position is
+played by a separate attacker container that writes onto the core's N3
+interface directly; it is not a UE and holds no PDU session (Section 4.3). The
+threat model does not assume an attacker who has taken over the UPF or SMF
+itself, which is a stronger and different problem, and it does not cover
+radio-layer attacks on the air interface. The detector is a
 passive tap: it watches N3 traffic and raises findings, but it does not block or
 change traffic. This matches where a production GTP firewall usually sits, in
 front of or spanning the UPF's N3 interface rather than in the UPF's own
@@ -204,16 +226,26 @@ academic literature.
 ### 4.2 Topology
 
 ```
- UE (uesimtun0)                     gNB                         Core (10.10.10.10)
- 10.45.0.x  ── PDU session ──►  10.10.10.20  ── N3 / GTP-U ──►  UPF ─► data network
-                                (UERANSIM)      UDP 2152        (Open5GS)
-                                                   │
-                                                   ▼
-                                          ┌──────────────────┐
-                                          │  DETECTOR (tap)  │  shares core netns,
-                                          │  sniffs eth0     │  sees every N3 packet
-                                          └──────────────────┘
+ UE (uesimtun0)                  gNB (UERANSIM)
+ 10.45.0.x ── PDU session ──►    10.10.10.20
+                                      │
+   ┌──────────────────────────────────┘  N3 / GTP-U, UDP 2152
+   ▼
+ ┌─ core network namespace (10.10.10.10) ─────────────────────────────┐
+ │ eth0 ──► UPF (Open5GS) ──► ogstun 10.45.0.1/16 ──► NAT ────────────┼──► data network
+ │  │ ▲                                                               │
+ │  │ └── ATTACKER (lab only): crafted GTP-U to the UPF               │
+ │  │     over a raw socket; not a UE, no PDU session                 │
+ │  ▼                                                                 │
+ │ DETECTOR (tap): sniffs eth0 passively, udp port 2152               │
+ └────────────────────────────────────────────────────────────────────┘
 ```
+
+The legitimate data path runs from the UE through the gNB as uplink GTP-U to the
+UPF, which decapsulates it onto its tunnel device `ogstun`, from where the
+core's NAT rule sends it out.
+Replies return as downlink GTP-U. The attacker is not on this path: it injects
+its own GTP-U on the core side, where the detector also listens.
 
 All components run on a fixed private Docker network (`10.10.10.0/24`) under the
 test PLMN `999/70`. This is never a real operator's identity and is never meant
@@ -227,9 +259,16 @@ third container on the same bridge does not see it by default. The
 places the detector inside the UPF's own network namespace and lets it sniff the
 real `eth0`. This is deliberately the same tap point a production GTP firewall
 uses, in front of or spanning the UPF's N3 interface, rather than a
-port-mirroring approximation. The `attacker` service shares the same namespace
-for the live-fire path, for the same reason. This choice has an operational
-consequence, documented in Section 8 and in `FINDINGS.md` as Finding 5.
+port-mirroring approximation. This choice has an operational consequence,
+documented in Section 8 and in `FINDINGS.md` as Finding 5.
+
+The `attacker` service uses the same `network_mode: "service:core"`, so its
+frames go out on the interface the detector sniffs. It is not a UE and holds no
+PDU session. It writes crafted GTP-U with a raw socket onto the core's `eth0`,
+the N3 interface, addressed to the UPF, and UERANSIM does not encapsulate these
+packets. It stands in for the on-path injector of the threat model
+(Section 2.2). Whether the UPF acts on the crafted frames was not measured; the
+detector observes them on `eth0` as a tap would.
 
 ### 4.4 Two operating modes
 
@@ -255,9 +294,10 @@ shared `evaluate()` dispatcher runs all four over every GTP-U packet. The
 dispatcher catches and discards any exception from an individual rule, so a
 single malformed packet can never crash the detector (verified by
 `test_detector_survives_garbage`). The `DetectorState` object holds the small
-amount of memory the rules need between packets: a map from each TEID to the
-first source that used it (for R2), and a configured set of core-function IP
-addresses (for R4).
+amount of memory the rules need between packets: a map from each (receiving
+address, TEID) pair to the source that owns it (for R2), an optional set of
+known gNB addresses (for R2's handover exception), and a configured set of
+core-function IP addresses (for R4).
 
 ### 5.1 Rule R1: nested tunnels (GTP-in-GTP), severity critical
 
@@ -269,8 +309,9 @@ easily a passive detector misses this. When Scapy parses the payload of a GTP-U
 packet, it looks at the first four bits to decide what the inner data is: a value
 of 4 means an IPv4 packet, and 6 means IPv6. A nested GTP header starts with
 neither. Its first byte falls in the range 0x30 to 0x3f (GTP version 1, with the
-protocol-type bit set), so Scapy gives up and treats the whole inner payload as
-opaque `Raw` bytes. A detector that checks
+protocol-type bit set), so Scapy never decodes the inner payload as GTP. It hands
+the bytes back as a non-IP layer instead, `Raw` or `PPP` depending on the outer
+header (see below). A detector that checks
 `pkt[GTP_U_Header].payload.haslayer(GTP_U_Header)` on captured or live traffic
 therefore gets `False` for every real nested-tunnel packet. The abuse is present;
 Scapy's own parsing heuristic has simply thrown away the information needed to
@@ -289,16 +330,21 @@ The fix (`_looks_like_gtp()`, `_reparse_inner()`, and `_carries_inner_ip()` in
 parse did not already yield a routable inner (an IPv4 or IPv6 packet) or a
 recognised GTP header. This detail matters more than it first appears. Scapy
 does not simply hand a nested GTP header back as `Raw`: which class it guesses
-depends on the outer message type. A nested header inside a realistic outer
-G-PDU, the form a UPF actually decapsulates, is guessed from its first byte and
-can come back as `Raw`, as `PPP`, or as another non-IP class, never as GTP.
-Keying the re-parse on the `Raw` class alone would catch only the packets a
-particular build of Scapy happens to leave as `Raw`; keying it on the bytes, as
-we do, catches the nested tunnel regardless of which wrong class the default
-parser assigned. If the first byte's top three bits indicate GTP version 1 with
-the protocol-type bit set, and the second byte is a known GTP message type (a
-G-PDU, an echo request or response, and so on), the bytes are parsed again as a
-GTP header before the rule checks for nesting.
+depends on the outer message type. Under a bare outer header with message type
+0x00, the packet decodes as IP / UDP / GTP-U / Raw. Inside a realistic outer
+G-PDU (message type 0xFF), the form a UPF actually decapsulates and the form the
+corpus uses, it decodes as IP / UDP / GTP-U / PPP / Raw: the first bytes of the
+nested header are read as a PPP header. In neither case does a GTP layer appear.
+Keying the re-parse on the `Raw` class alone would catch only the packets that
+happen to be left as `Raw`; keying it on the bytes, as we do, catches the nested
+tunnel regardless of which wrong class the default parser assigned. The engine
+keeps a payload that Scapy already decoded as IPv4, IPv6 or a GTP header.
+Anything else is serialised back to bytes as a whole layer (`bytes(inner)`),
+not just its trailing `load`, because a `PPP` guess has already consumed the
+start of the nested header. If the first byte's top three bits indicate GTP
+version 1 with the protocol-type bit set, and the second byte is a known GTP
+message type (a G-PDU, an echo request or response, and so on), the bytes are
+parsed again as a GTP header before the rule checks for nesting.
 
 Two extra guards stop this from raising false alarms on harmless non-IP payloads.
 (5G "Unstructured" PDU sessions carry arbitrary bytes, and some of them happen to
@@ -314,19 +360,26 @@ As far as we know, this is an underdocumented requirement for any Scapy-based
 passive GTP-U tool, and it generalises. Any passive detector tested only against
 packet objects built in memory, rather than against bytes parsed back off the
 wire, risks silently missing exactly the abuse that depends on a parser's
-fallback behaviour. Section 8 develops this point further, using four more
-concrete cases from this project's own deployment tooling.
+fallback behaviour. Section 8 develops this point further, using seven more
+concrete cases found on this project's own live path.
 
 ### 5.2 Rule R2: TEID spoofing, severity high
 
-R2 catches a TEID that was first seen from one source IP and later arrives from a
-different source IP.
+R2 catches a TEID that was first seen from one source IP and later arrives at the
+same receiving endpoint from a different source IP.
 
-The implementation is deliberately simple. `DetectorState.teid_owner` records the
-first source to use each TEID; that source becomes the owner. Any later packet
-with the same TEID from a different source raises a finding. This first-source-
-wins approach trades the ability to catch sophisticated, session-aware spoofing
-for something auditable and easy to unit-test.
+The implementation is deliberately simple. A TEID is unique only within the
+endpoint that receives it (3GPP TS 29.281), so the same number on the UPF's
+uplink and on a gNB's downlink names two different tunnels.
+`DetectorState.teid_owner` is therefore keyed on the pair (receiving address,
+TEID), where the receiving address is the destination of the outer IPv4 or IPv6
+header that carries the tunnel, and records the first source seen for each pair; that source becomes the owner. Any later packet
+on the same pair from a different source raises a finding and leaves ownership
+where it was, so a rogue cannot take a TEID over by sending on it. This
+first-source-wins approach trades the ability to catch sophisticated,
+session-aware spoofing for something auditable and easy to unit-test. An earlier
+version keyed ownership on the TEID alone and moved it to whichever source sent
+last. The labelled live run exposed that defect (Section 8, item 7).
 
 There is one honest complication: handovers. A legitimate Xn or N2 handover moves
 a handset from one base station to another. The UPF's uplink TEID stays the same,
@@ -336,13 +389,18 @@ raises a false alarm on every handover. Section 6.1.4 quantifies this: without
 any mitigation, every remaining false positive is a handover.
 
 The mitigation is an optional allowlist of known gNB IPs, supplied by the
-operator (`--gnb-ips`, stored in `DetectorState.known_gnb_ips`). If a TEID's
-owner changes but both the old and new sources are known gNBs, R2 treats it as a
-handover and stays quiet. If the TEID is re-sourced from any address outside the
-pool, R2 still fires. With the allowlist, handover false positives drop to zero
-while the rogue-source spoof of Section 6.1.5 is still caught. This is a
-deliberate, honest treatment of a real limitation of stateless passive
-attribution, rather than a corpus that quietly leaves handovers out. Two blind
+operator (`--gnb-ips`, stored in `DetectorState.known_gnb_ips`). If a packet
+arrives from a new source that is a known gNB, R2 lets it take ownership and
+raises no finding. That covers a handover, and it also lets the real gNB reclaim
+a tunnel a rogue was seen on first, for example after a detector restart,
+instead of being flagged on every packet. A packet from any address outside the
+pool still fires, and ownership does not move. Without the allowlist every change of source is
+flagged and ownership never moves, so a handed-over session keeps raising R2 for
+as long as it sends from the new gNB, not just once at the handover. With the
+allowlist, handover false positives drop to zero while every rogue-source spoof
+in the corpus (`teid_spoof`, recall 1.0, Section 6.1.3) is still caught. This is a deliberate, honest treatment of a real
+limitation of stateless passive attribution, rather than a corpus that quietly
+leaves handovers out. Two blind
 spots remain: a rogue that forges a legitimate gNB's source IP, and a rogue that
 claims a TEID the detector has never seen. Both are listed as evasion cases in
 Section 6.1.5 and in Section 9. Closing either one needs control-plane
@@ -428,9 +486,10 @@ re-parse.
 | teid_spoof | 1.0 | 1.0 |
 | overall | 1.0 | 0.80 (F1 0.889) |
 
-The naive baseline misses 100% of nested tunnels, because a nested GTP header is
-parsed as `Raw` by default (Section 5.1). This makes the claim in Sections 1.2
-and 5.1 concrete: the contribution is worth moving R1 recall from 0.0 to 1.0, and
+The naive baseline misses 100% of nested tunnels, because by default a nested GTP
+header is never parsed as GTP; in the corpus's realistic G-PDU form Scapy reads
+it as `PPP` (Section 5.1). This makes the claim in Sections 1.2 and 5.1
+concrete: the contribution is worth moving R1 recall from 0.0 to 1.0, and
 overall F1 from 0.889 to 1.0.
 
 #### 6.1.4 Where the false positives come from, and the handover ablation
@@ -474,25 +533,81 @@ root, or network, through `python3 eval/run_eval.py`.
 ### 6.2 Live full-stack validation
 
 A real Open5GS core and a UERANSIM UE and gNB were brought up in Docker. The UE
-completed NG Setup, NAS registration, and PDU session establishment, producing a
-real `uesimtun0` interface at `10.45.0.2`. A `ping -c3 8.8.8.8` through that
-tunnel confirmed genuine N3 GTP-U traffic with 0% packet loss. A 500-packet
-attack corpus (400 malicious, 100 benign) was then fired live, as real raw-socket
-traffic, at the UPF. The passive detector, running inside the core's own network
-namespace, produced 131 findings with no crashes:
+completed NG Setup, NAS registration, and establishment of an IPv4 PDU session,
+producing a real `uesimtun0` interface at `10.45.0.2`. The command
+`docker compose exec ran ping -I uesimtun0 -c3 8.8.8.8` then confirmed the UE
+data path end to end. A `tcpdump` on the core showed each echo request arrive as
+uplink GTP-U from the gNB (`10.10.10.20`) to the UPF (`10.10.10.10`), the inner
+ICMP appear on the UPF's tunnel device `ogstun` and leave through NAT, and each
+reply return as downlink GTP-U from `10.10.10.10` to `10.10.10.20`. All 3
+replies were received. The session's TEIDs were `0xb2aa` uplink and `0x1`
+downlink. The detector counted these packets and raised zero findings, which is
+the right outcome for this traffic. An earlier version of this paper cited a
+ping run through the `nr-binder` helper as the same proof; that ping never
+entered the tunnel (Section 8, item 6).
 
-| Rule | Live findings |
-|---|---:|
-| R1_GTP_IN_GTP | 22 |
-| R2_TEID_SPOOF | 17 |
-| R3_CP_SMUGGLING | 37 |
-| R4_INNER_TO_CORE | 55 |
+A 500-packet labelled attack corpus was then sent live over a raw socket by the
+attacker container, which is not the UE (Section 4.3). The corpus is seeded
+(1337) and is the same on every run: 100 benign, 88 `teid_spoof`, 82
+`gtp_in_gtp`, 80 `inner_to_core`, 79 `pfcp_smuggle` and 71 `ngap_smuggle`
+packets. Every packet uses TEID `0x1` and outer destination `10.10.10.10`. The
+outer source is `10.10.10.20`, except for the `teid_spoof` packets, which come
+from `10.10.10.66`. The send takes about 17 minutes, because Scapy cannot
+resolve a MAC address for the UPF from inside the core's own namespace and sends
+each frame as a broadcast. The passive detector, running in the same namespace,
+saw all 500 packets and did not crash.
+
+To score the run packet by packet, the same corpus is written to a capture file
+with its labels and passed through the detector's offline `pcap` mode
+(`make live-score`). For the live run reported below as "before the R2 fix",
+the live findings stream was identical, in order and content (rule, source,
+destination, TEID and detail), to that offline pass, for all 608 of its
+findings. The per-packet scores therefore apply to the live run. The scoring
+exposed a defect in R2 (Section 8, item 7). Before and after the fix:
+
+| | Before the R2 fix | After the R2 fix |
+|---|---:|---:|
+| R1_GTP_IN_GTP | 82 | 82 |
+| R2_TEID_SPOOF | 146 | 88 |
+| R3_CP_SMUGGLING | 150 | 150 |
+| R4_INNER_TO_CORE | 230 | 230 |
+| Total findings | 608 | 550 |
+| True / false positives | 385 / 16 | 400 / 0 |
+| False / true negatives | 15 / 84 | 0 / 100 |
+| Precision | 0.960 | 1.0 |
+| Recall | 0.9625 | 1.0 |
+| F1 | 0.961 | 1.0 |
+| False-positive rate | 0.16 | 0.0 |
+
+The before column is a live run on a freshly started lab; the after column is a
+live run on a freshly recreated detector. In the after run the fixed
+detector saw all 500 packets and raised 550 findings, and its findings stream
+was identical in order and content to the offline pass. Four UE pings through
+the tunnel before the attack and four after it (40 GTP-U packets in all) raised
+no finding, and the detector counted 540 packets, 500 + 40. The unit test
+`test_live_attack_corpus_scores_clean` locks the after-fix per-packet verdicts
+(every malicious packet flagged, every benign packet clean).
+Findings exceed the 400 malicious packets because rules overlap: every
+`pfcp_smuggle` and `ngap_smuggle` packet raises both R3 and R4, since its inner
+destination is the UPF. Every error before the fix came from R2. All 16 false
+positives were a benign packet immediately after a `teid_spoof`: ownership had
+moved to the rogue, so the gNB's own packet looked like the spoof. All 15 false
+negatives were a `teid_spoof` immediately after another `teid_spoof`: the rogue
+already owned the TEID, so nothing had changed. After the fix R2 fires exactly
+once for each of the 88 `teid_spoof` packets and never on the gNB, and R1, R3
+and R4 are unchanged.
+
+The live figure published in an earlier version of this paper, 131 findings
+(R1 22, R2 17, R3 37, R4 55), did not reproduce and is withdrawn.
 
 ### 6.3 Coverage parity
 
 The same four rules fired in both the offline corpus (Section 6.1) and the live
-run (Section 6.2). The counts differ, because the corpus, seed, and live
-ARP-driven timing differ, but the coverage is the same. Since both paths share
+run (Section 6.2). The counts differ (120, 120, 240 and 360 offline for R1 to
+R4; 82, 88, 150 and 230 on the live corpus after the fix) because the two
+corpora differ in size and composition, but the coverage is the same. On the
+identical corpus the agreement is exact: the live findings stream and an offline
+pass over the same 500 packets match finding for finding. Since both paths share
 one detection engine (Section 4.4), this is evidence that the offline numbers
 reflect genuine detection ability rather than a corpus quietly shaped to fit the
 detector's assumptions.
@@ -520,9 +635,11 @@ same probe, Zeek records exactly one GTPv1 tunnel, the outer one, and never a
 nested second tunnel. It decapsulates and logs the inner connections of the
 benign packet (an ICMP flow to the data network) and the smuggle packet (a UDP
 flow to the PFCP port) through its tunnel-parent field, but the nested packet
-produces no inner connection and not even a weird-log entry: Zeek forwards the
-decapsulated payload to its IP analyzer, which rejects the nested GTP-U header as
-not a valid IP packet and drops it silently.
+produces no inner connection and no second tunnel: Zeek's GTPv1 analyzer finds
+that the decapsulated payload is neither IPv4 nor IPv6, records one analyzer
+violation in `analyzer.log`, `non-IP packet in GTPv1`, and does not pass the
+payload on, so no inner connection or second tunnel appears. The violation does
+not identify the payload as a tunnel.
 
 Three independently written implementations, each forwarding only a payload it
 recognises as IP, therefore all miss the bare-nested form. This is also why the
@@ -563,6 +680,10 @@ here.
   false-positive analysis, the multi-seed run, and the evasion suite into one
   reproducible command, then writes the markdown report. Every number in
   Section 6.1 comes from a single `python3 eval/run_eval.py`.
+- `make live-score` writes the exact corpus that `make attack` sends, with
+  per-packet labels, and scores it through the detector's `pcap` mode with the
+  same `--core-ips` and `--gnb-ips` as the live detector. The per-packet scores
+  in Section 6.2 come from it.
 
 ---
 
@@ -572,8 +693,11 @@ Before this investigation the offline test suite was fully green: 7 of 7 unit
 tests passing, and perfect precision, recall, F1, and false-positive rate on the
 labelled corpus. Bringing the live Docker lab up for the first time, which the
 project's own README treats as an equally important way to run it, exposed five
-real bugs. Each is documented with full root-cause analysis and diffs in
-`FINDINGS.md`.
+real bugs (items 1 to 5 below). Two more (items 6 and 7) surfaced later, during
+revision, when a labelled live run was scored packet by packet. At that point
+the offline suite again passed in full, with 21 of 21 unit tests and the same
+perfect scores. Each defect is documented with full root-cause analysis and
+diffs in `FINDINGS.md`.
 
 1. The `core` image never installed `mongosh`, which both the entrypoint's health
    check and the upstream subscriber-provisioning tool depend on. Bring-up hung
@@ -593,26 +717,72 @@ real bugs. Each is documented with full root-cause analysis and diffs in
    bytes onto the wire, where any listener reads the first 14 bytes as a bogus
    Ethernet header. Every live-fired attack packet, for the whole history of the
    project up to this work, was malformed at the link layer. The fix, using
-   Scapy's `send()` (Layer 3, which lets the kernel build a real frame and
-   resolve ARP), is two lines, but until then the project's own "fire abuse and
+   Scapy's `send()` (Layer 3, so a real Ethernet header is added before the
+   frame goes out), is two lines, but until then the project's own "fire abuse and
    watch detections" demo had never actually worked.
 5. The `network_mode: "service:core"` setting in `docker-compose.yml`, the very
    thing that makes the detector's tap point realistic (Section 4.3), binds to a
    specific container instance's namespace at attach time, not to a service name.
    Recreating `core`, which is needed to apply fixes 1 and 2, silently detached
    the detector and required an explicit `--force-recreate` to reattach. This is
-   an easy trap to hit repeatedly while iterating, and it is not yet automated
-   anywhere in the repo.
+   an easy trap to hit repeatedly while iterating. `scripts/lab_up.sh` does the
+   reattach on a full bring-up, but `make lab-up` does not call that script, so
+   after a manual `core` rebuild it is still a manual step.
+6. The UE data path never worked, and the documented check for it passed
+   anyway. Nothing in the `core` container configured the UPF's TUN device
+   `ogstun`: it had no address and its link was down. The UPF decapsulated each
+   uplink GTP-U packet and then logged `ogs_tun_write() failed`, so no UE packet
+   ever reached the data network. The documented check,
+   `docker compose exec ran ./build/nr-binder 10.45.0.2 ping -c3 8.8.8.8`,
+   still got replies. `nr-binder` works by preloading `./libdevbnd.so`, a path
+   relative to the current directory. Run from `/ueransim` as documented, the
+   loader could not find it, printed an error above the ping output, and ran
+   `ping` unbound. The ping left
+   `ran`'s `eth0` from `10.10.10.20` by Docker's default route and never touched
+   the tunnel; a `tcpdump` on the core saw zero GTP-U while it ran.
+   `core/entrypoint.sh` now gives `ogstun` the address `10.45.0.1/16`, brings it
+   up, and NATs the UE pool out of `eth0`, and the check is now
+   `docker compose exec ran ping -I uesimtun0 -c3 8.8.8.8` (Section 6.2). The
+   live detection results did not depend on this path, because the attacker is
+   not a UE (Section 4.3).
+7. Rule R2 handed a TEID to whichever source sent last, and keyed it on the TEID
+   alone. On any change of source the old code moved ownership to the new
+   source before deciding whether to alert. In the live corpus every packet uses
+   TEID `0x1`, so spoofs interleave with the gNB's own packets on one tunnel.
+   The first spoof was flagged but made the rogue the owner. The gNB's next
+   benign packet was then flagged (16 false positives), and a spoof straight
+   after another spoof matched the new owner and raised nothing (15 false
+   negatives). The TEID-only key was a second fault: in this lab the real
+   session's downlink TEID was also `0x1`, the number the corpus sends to the
+   UPF, and a TEID-only key puts both tunnels under one owner. R2 now keys
+   ownership on (receiving address, TEID) and lets the first source win
+   (Section 5.2). Three new unit tests and an extended baseline test fail on the
+   old code and pass on the new, and `make test` now gives 24 passed, up from
+   21. The offline results in Section 6.1 are unchanged by the fix.
 
-None of these five were reachable from `make test` or `make eval`. Findings 1, 2,
-3, and 5 live entirely in Docker and container bring-up code that the offline
-path never runs. Finding 4 is the sharpest example of why this matters even for
-code the offline path does exercise indirectly. The packet-construction logic in
-`generate_attacks.py` is shared between the `--write` path, used by every offline
-test and the headline numbers in Section 6.1, and the `--send` path, used only
-live. The offline path never calls `sendp()` or `send()`, so a bug that lived
-only in how packets are transmitted, not in how they are built, was completely
-invisible to a result of 100% precision, 100% recall, and 0% false-positive rate.
+None of the first six were reachable from `make test` or `make eval`. Findings
+1, 2, 3, 5 and 6 live entirely in Docker and container bring-up code, or in a
+manual check, that the offline path never runs. Finding 4 is the sharpest
+example of why this matters even for code the offline path does exercise
+indirectly. The packet-construction logic in `generate_attacks.py` is shared
+between the `--write` path, used by every offline test and the headline numbers
+in Section 6.1, and the `--send` path, used only live. The offline path never
+calls `sendp()` or `send()`, so a bug that lived only in how packets are
+transmitted, not in how they are built, was completely invisible to a result of
+100% precision, 100% recall, and 0% false-positive rate.
+
+Finding 7 is different. It is the only defect in detection logic, and both
+`make test` and `make eval` run that code. The offline inputs never produced the
+sequence that triggers it. The benchmark corpus gives every spoof its own victim
+TEID, emits all the victims first, and has a single receiver, so on each TEID
+the legitimate source is always seen first and the spoof second, with nothing
+after it. On that input "first source wins" and "last source wins" give the same
+verdicts, and the TEID-only key never meets two receivers. The original R2 unit
+test sent one legitimate packet and one spoof and checked only that the spoof
+was flagged. The live corpus interleaves spoofs and legitimate packets on one
+TEID, and both faults showed at once. Running the code was not enough here; the
+tests also needed an input in which spoofs and legitimate packets share one
+tunnel.
 
 The general lesson is this. For any tool whose whole value is that it correctly
 reads or produces real network traffic, whether a passive detector, a protocol
@@ -622,13 +792,13 @@ class that matters most for these tools, such as missing link-layer framing, a
 config writer that quietly does nothing, or a parser that discards the very bytes
 you are trying to detect, is by construction invisible to any test that never
 actually puts bytes on, or reads them off, a real wire. The project's own R1
-finding (Section 5.1) and the five deployment findings here are the same failure
-mode found at two different layers of one codebase: code that looks correct, and
+finding (Section 5.1) and the seven findings here are the same failure mode
+found at two different layers of one codebase: code that looks correct, and
 in R1's case is even provably correct against an in-memory unit test, but quietly
-does the wrong thing, or nothing, once real bytes are involved. We take this as
-an argument that, for security tooling which touches real wire traffic, running
-the live path end to end is not an optional demo but a necessary validation step
-that a passing offline suite cannot replace.
+does the wrong thing, or nothing, once real bytes and real traffic are involved.
+We take this as an argument that, for security tooling which touches real wire
+traffic, running the live path end to end is not an optional demo but a
+necessary validation step that a passing offline suite cannot replace.
 
 ---
 
@@ -658,28 +828,46 @@ that a passing offline suite cannot replace.
   correlation, which is out of scope for a user-plane-only tap. First-source-wins
   ownership also has no TEID ageing or expiry, so TEID recycling after a session
   ends, in a long-running deployment, is an unmeasured source of false positives.
+  Without the gNB allowlist, ownership never moves, so a handed-over session
+  raises R2 on every packet it sends from the new gNB.
 - R3 works on ports and protocols, and is evaded by moving a control protocol off
   its usual port (Section 6.1.5). Closing this would need deep payload
   classification.
 - R4 depends entirely on correct manual configuration of `--core-ips`. A core
   function outside the configured set is invisible (Section 6.1.5), and a wrong
   entry quietly disables the rule instead of raising an error.
+- R1's re-parse recovers one nested header that forwards a routable inner
+  packet, which is the construction the corpus contains. It does not catch two
+  others. An attacker who nests twice defeats it. And the zero-length nested
+  G-PDU behind CVE-2021-45462 carries no inner packet, so the length gate rejects
+  it by design and, in the bare form, no rule fires; in the IP-wrapped form R3
+  still flags it as GTP-U inside the tunnel.
 - IPv6 coverage is partial. R1's nesting check now handles an IPv6 inner tunnel
-  (Section 6.1.5), but R3 and R4 still inspect only IPv4 inner addresses, so
-  control-plane smuggling or core targeting inside an IPv6 inner packet is not
-  yet detected.
-- The setup is one subscriber, one PDU session, and the test PLMN only. The
+  (Section 6.1.5) and R3's port checks apply to IPv6 inner packets, but R3's SCTP
+  check and R4 still inspect only IPv4 inner packets, so SCTP smuggling or core
+  targeting inside an IPv6 inner packet is not yet detected.
+- The setup is one subscriber, one IPv4 PDU session, and the test PLMN only.
+  Unstructured and Ethernet PDU session types were not exercised live; the
+  Unstructured case appears only as synthetic payloads in the offline corpus. The
   handover scenario is modelled synthetically with two gNB IPs, not run against a
   live multi-gNB core, and no roaming or network-slicing scenarios were
   exercised.
+- The live attacker is not a rogue gNB with its own session. It writes crafted
+  GTP-U onto the core's `eth0` from inside the core's own namespace
+  (Section 4.3), standing in for an on-path injector. Whether the UPF acts on
+  those frames was not measured; the live results describe what the detector
+  sees on the interface, not how the UPF behaves.
 - Performance was measured on a single core, on one lab VM, with no other load.
   The figure of about 1,450 packets per second (Section 6.1) reflects the real
   cost of dissecting and checking every packet, but it is not validated against
   production N3 packet rates, and no multi-core or sustained-load testing was
   done.
-- The live-run finding counts (Section 6.2) come from a single run, not a
-  repeated set of trials, and are not directly comparable in size to the offline
-  corpus (Section 6.3 explains what is and is not comparable).
+- The live-run results (Section 6.2) come from two live runs of one seeded
+  corpus, one before and one after the R2 fix, not a repeated set of trials, and
+  are not directly comparable in size to the offline corpus (Section 6.3 explains
+  what is and is not comparable). That corpus sends every packet on one TEID to
+  one receiver. In both runs the live findings stream matched an offline pass
+  over the same packets finding for finding.
 
 ---
 
@@ -697,9 +885,10 @@ that a passing offline suite cannot replace.
 - The machine-learning extension sketched in `docs/ARCHITECTURE.md`: treating
   each rule's `Finding` output from `evaluate()` as a feature vector for a
   downstream classifier, instead of a final yes/no severity signal.
-- Automating the recreate-and-reattach step from Finding 5 (`FINDINGS.md`),
-  either as a `make redeploy` target or as a Compose health-check dependency, so
-  it stops being a manual step.
+- Automating the recreate-and-reattach step from Finding 5 (`FINDINGS.md`)
+  beyond the full bring-up in `scripts/lab_up.sh`, either as a `make redeploy`
+  target or as a Compose health-check dependency, so it stops being a manual
+  step after a `core` rebuild.
 
 ---
 
@@ -713,7 +902,9 @@ pointed at any network the operator does not own and is not explicitly authorise
 to test. Generating GTP-U abuse traffic against a live mobile operator's
 infrastructure is illegal in most jurisdictions, and it was never done,
 attempted, or intended in this work. Every result in this paper was produced
-entirely inside the isolated Docker lab described in Section 4.
+inside the isolated Docker lab described in Section 4. The only traffic that
+left the lab was the benign ICMP of the UE data-path check (Section 6.2), NATed
+to 8.8.8.8; no generated abuse traffic left it.
 
 ---
 

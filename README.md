@@ -29,7 +29,7 @@ This is the path that produces your thesis numbers. It needs only Python + Scapy
 
 ```bash
 pip install scapy pytest
-make test      # 21 tests: abuse detected, realistic benign clean, evasions, baseline & repro locked
+make test      # 24 tests: abuse detected, realistic benign clean, evasions, baseline & repro locked
 make eval      # comprehensive benchmark -> eval/RESULTS.md
 make evasions  # list the crafted evasion suite (what the detector must / can't catch)
 ```
@@ -39,8 +39,9 @@ packets span **twelve** traffic categories, including adversarial
 Unstructured-PDU bytes and legitimate handovers, plus 120 victim flows):
 precision 1.0, recall 1.0, F1 1.0, false-positive rate 0.0, stable across five
 seeds (σ = 0), ≈1,450 pkt/s single core measured over the full
-serialize, dissect, and evaluate cycle (dissection is ~76% of that cost on this
-host; timing the rules alone gives ≈6,000 pkt/s and is not a tap rate). The evaluation also reports a **naive-baseline comparison**
+dissect and evaluate cycle (dissection is ~76% of that cost on this
+host; the remaining rule evaluation works out to ≈6,000 pkt/s, a figure derived
+from that split rather than timed, and not a tap rate). The evaluation also reports a **naive-baseline comparison**
 (the baseline misses 100% of GTP-in-GTP, this is the contribution,
 quantified), a **false-positive ablation** tracing every residual FP to a
 single mitigated cause, and an **evasion suite** documenting the detector's
@@ -54,19 +55,34 @@ Needs a host with a real kernel, `/dev/net/tun`, and the `docker compose` plugin
 make build
 make lab-up          # mongo + core + RAN + live detector
 make logs            # watch the detector; UE gets a 10.45.x.x address
+docker compose exec ran ping -I uesimtun0 -c3 8.8.8.8   # real UE traffic through N3
 make attack          # fire the abuse corpus at the lab UPF
+make live-score      # score the same corpus per packet against its labels (no Docker)
 make lab-down
 ```
 
 The detector runs in the **core's network namespace**, so it taps the exact
 interface terminating N3, the same place you'd put a passive tap in production.
+The attacker container shares that namespace too. It is not a UE and holds no
+PDU session: it writes crafted GTP-U with a raw socket onto the core's `eth0`
+(the N3 interface), addressed to the UPF, standing in for the on-path position
+of the threat model. UERANSIM does not encapsulate these packets.
+
+Reference live result: `make attack` sends 500 packets (400 malicious, 100
+benign, seed 1337) and the detector raises 550 findings (R1 82, R2 88, R3 150,
+R4 230). Findings exceed malicious packets because rules overlap.
+`make live-score` writes the same corpus with labels and scores it per packet:
+precision, recall and F1 1.0, FPR 0.0. Before the R2 ownership fix the same
+corpus gave 608 findings, with 16 false positives and 15 false negatives. The
+send takes about 17 minutes, because Scapy falls back to broadcast frames
+inside the core's namespace.
 
 ## Detection rules
 
 | ID | Rule | Severity | What it catches |
 |---|---|---|---|
 | R1 | `GTP_IN_GTP` | critical | a GTP header nested inside GTP-U payload |
-| R2 | `TEID_SPOOF` | high | a TEID re-sourced from a new IP |
+| R2 | `TEID_SPOOF` | high | a TEID at an endpoint sent from a source other than its first owner |
 | R3 | `CP_SMUGGLING` | critical | PFCP/NGAP/GTP-C encapsulated in user data |
 | R4 | `INNER_TO_CORE` | high | inner IP aimed at a core NF, not the data network |
 
@@ -78,6 +94,16 @@ bare outer, `PPP` for a realistic G-PDU outer), so the re-parse keys on the raw
 bytes, not on the class. `tshark` and Zeek exhibit the same blind spot; see
 `paper/REPRODUCE.md` Part D and `docs/ARCHITECTURE.md`. This is a genuine
 passive-detection robustness finding.
+
+R2 keys TEID ownership on (receiving address, TEID), the receiving address being
+the destination of the outer IPv4 or IPv6 header that carries the tunnel, because TS 29.281 makes a TEID unique only within the
+endpoint that receives it. The first source seen owns the pair. A packet from
+any other source raises R2 and does not take ownership, so a rogue cannot take a
+TEID over. With the gNB allowlist (`--gnb-ips`) configured, an allowlisted gNB
+always takes ownership and nothing is raised: that covers a handover, and the
+real gNB reclaiming a tunnel a rogue was seen on first (for example after a
+detector restart). Without the allowlist every change is flagged, so a handed-over session
+keeps alerting for as long as it sends from the new gNB.
 
 ## Repo layout
 

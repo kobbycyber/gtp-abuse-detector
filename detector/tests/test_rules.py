@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from scapy.all import IP, UDP, ICMP, TCP, Raw
+from scapy.all import IP, IPv6, UDP, ICMP, TCP, Raw
 from scapy.contrib.gtp import GTP_U_Header
 from scapy.contrib.pfcp import PFCP
 
@@ -100,3 +100,73 @@ def test_benign_gpdu_inner_ip_clean():
                    GTP_U_Header(gtp_type=0xFF, teid=0x1) /
                    IP(src="10.45.0.2", dst="8.8.8.8") / ICMP()))
     assert "R1_GTP_IN_GTP" not in rules_hit(evaluate(pkt, st))
+
+
+def test_teid_spoof_rogue_cannot_take_ownership():
+    """Spoofs interleaved with the owner's traffic on one TEID: every spoof is
+    flagged and the legitimate owner never is. Regression for the defect the
+    live corpus exposed: R2 used to hand the TEID to whichever source sent
+    last, so the owner's next packet was flagged and a repeated spoof from the
+    same rogue went unseen."""
+    st = fresh_state()
+    st.known_gnb_ips = {GNB, "10.10.10.21"}
+    legit = _outer(0x7, src=GNB) / IP(src="10.45.0.2", dst="8.8.8.8") / ICMP()
+    spoof = _outer(0x7, src=ATT) / IP(src="10.45.0.2", dst="8.8.8.8") / ICMP()
+    assert evaluate(legit, st) == []
+    for _ in range(3):
+        assert "R2_TEID_SPOOF" in rules_hit(evaluate(spoof, st))
+        assert "R2_TEID_SPOOF" in rules_hit(evaluate(spoof, st))   # repeated spoof
+        assert evaluate(legit, st) == []                           # owner stays clean
+    # The rogue is seen first (e.g. after a detector restart): with the
+    # allowlist, the legitimate gNB reclaims the tunnel silently and the
+    # rogue's next packet is flagged, rather than the roles staying reversed.
+    legit8 = _outer(0x8, src=GNB) / IP(src="10.45.0.2", dst="8.8.8.8") / ICMP()
+    spoof8 = _outer(0x8, src=ATT) / IP(src="10.45.0.2", dst="8.8.8.8") / ICMP()
+    assert evaluate(spoof8, st) == []
+    assert evaluate(legit8, st) == []
+    assert evaluate(legit8, st) == []
+    assert "R2_TEID_SPOOF" in rules_hit(evaluate(spoof8, st))
+
+
+def test_teid_scoped_by_receiving_endpoint():
+    """A TEID is unique only within its receiving endpoint (TS 29.281), and
+    each endpoint allocates its own, so one number can name two tunnels. In
+    the live run the session's downlink TEID was 0x1 (UPF -> gNB) while the
+    attack corpus sent uplink traffic on TEID 0x1 (gNB -> UPF). Downlink
+    traffic on 0x1 must not make the UPF the owner of the uplink tunnel 0x1,
+    and a spoof of that uplink tunnel must still fire. Ownership must also
+    come from the outer header that carries the tunnel, including over IPv6
+    transport, never from the subscriber's inner packet."""
+    st = fresh_state()
+    st.known_gnb_ips = {GNB, "10.10.10.21"}
+    uplink = _outer(0x1, src=GNB, dst=UPF) / IP(src="10.45.0.2", dst="8.8.8.8") / ICMP()
+    downlink = _outer(0x1, src=UPF, dst=GNB) / IP(src="8.8.8.8", dst="10.45.0.2") / ICMP()
+    assert evaluate(downlink, st) == []
+    assert evaluate(uplink, st) == []
+    assert evaluate(downlink, st) == []
+    spoof = _outer(0x1, src=ATT, dst=UPF) / IP(src="10.45.0.2", dst="8.8.8.8") / ICMP()
+    assert "R2_TEID_SPOOF" in rules_hit(evaluate(spoof, st))
+    # IPv6 N3 transport carrying IPv4 user traffic: varying inner sources on
+    # one tunnel are legitimate, a different outer source is a spoof.
+    def v6(src, inner_src):
+        return IPv6(bytes(IPv6(src=src, dst="fd00::20") / UDP(sport=GTPU, dport=GTPU) /
+                          GTP_U_Header(teid=0x9) / IP(src=inner_src, dst="10.45.0.2") / ICMP()))
+    for inner_src in ("8.8.8.8", "1.1.1.1", "8.8.8.8", "9.9.9.9"):
+        assert evaluate(v6("fd00::10", inner_src), st) == []
+    assert "R2_TEID_SPOOF" in rules_hit(evaluate(v6("fd00::66", "8.8.8.8"), st))
+
+def test_live_attack_corpus_scores_clean():
+    """The exact corpus `make attack` sends live (seed 1337, 400 malicious, 100
+    benign, every packet on TEID 0x1) must score with no false positive and no
+    false negative under the live detector's configuration."""
+    import argparse
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__)))), "attacker"))
+    import generate_attacks as ga
+    args = argparse.Namespace(upf=UPF, smf=SMF, gnb=GNB, attacker=ATT, teid=0x1,
+                              count=400, benign=100, seed=1337, classes=None)
+    pkts, labels = ga.build_corpus(args)
+    st = fresh_state()
+    st.known_gnb_ips = {GNB, "10.10.10.21"}
+    flagged = [bool(evaluate(IP(bytes(p)), st)) for p in pkts]
+    assert flagged == labels

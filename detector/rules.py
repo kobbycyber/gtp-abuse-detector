@@ -38,8 +38,8 @@ def _looks_like_gtp(buf: bytes) -> bool:
 
     First byte: version(3b)=001, PT(1b)=1  -> top nibble is 0x3.
     Second byte is the message type. This lets the detector see nested
-    tunnels that Scapy's default GTP-U payload binding parses as Raw,
-    because that binding only expects IPv4/IPv6 inside a G-PDU.
+    tunnels that Scapy's default GTP-U payload binding leaves undecoded (as Raw
+    or PPP), because that binding only expects IPv4/IPv6 inside a G-PDU.
 
     Beyond the version/PT/type gate we also validate the 16-bit length field
     (bytes 2-3): for a real GTP header the total datagram is
@@ -147,16 +147,17 @@ class Finding:
 @dataclass
 class DetectorState:
     """Cross-packet memory. Deliberately small so it survives long captures."""
-    # teid -> first source IP seen carrying it
+    # (receiving IP, teid) -> source IP that owns that tunnel
     teid_owner: dict = field(default_factory=dict)
     # set of IPs belonging to core network functions (UPF/SMF/AMF/...)
     core_nf_ips: set = field(default_factory=set)
     # UE address pool prefix (traffic to here is legitimate user data)
     ue_pool_prefix: str = "10.45."
-    # Known legitimate gNB source IPs. When populated, R2 suppresses TEID-owner
-    # changes *between* known gNBs (a legitimate Xn/N2 handover) and only flags
-    # a TEID re-sourced from an IP OUTSIDE this pool -- i.e. an actual rogue
-    # endpoint. Leave empty to keep the stricter "flag any owner change" mode.
+    # Known legitimate gNB source IPs. When populated, a known gNB always takes
+    # TEID ownership silently (a legitimate Xn/N2 handover, or the gNB
+    # reclaiming a tunnel a rogue was seen on first), and R2 only flags a TEID
+    # re-sourced from an IP OUTSIDE this pool -- i.e. an actual rogue endpoint.
+    # Leave empty to keep the stricter "flag any owner change" mode.
     known_gnb_ips: set = field(default_factory=set)
 
     def is_core_ip(self, ip: str) -> bool:
@@ -169,8 +170,9 @@ class DetectorState:
 def _inner_of_gtpu(pkt: Packet) -> Optional[Packet]:
     """Return the payload carried *inside* the outer GTP-U header, or None.
 
-    Actively re-parses Raw payloads that are really nested GTP headers, so
-    the rules see tunnel-in-tunnel abuse that default dissection hides.
+    Actively re-parses a payload the dissector did not decode as IP or GTP
+    (Raw, PPP or another guessed class) when its bytes are really a nested GTP
+    header, so the rules see tunnel-in-tunnel abuse that default dissection hides.
     """
     if not pkt.haslayer(GTP_U_Header):
         return None
@@ -209,26 +211,51 @@ def rule_gtp_in_gtp(pkt: Packet, state: DetectorState) -> list[Finding]:
     return []
 
 
+def outer_net(pkt: Packet):
+    """The IPv4 or IPv6 header that carries the outer GTP-U datagram, or None.
+
+    pkt[IP] would return the first IPv4 layer anywhere in the packet, which
+    over IPv6 N3 transport is the subscriber's inner packet, not the tunnel's.
+    """
+    udp = pkt[GTP_U_Header].underlayer
+    net = udp.underlayer if udp is not None else None
+    return net if isinstance(net, (IP, IPv6)) else None
+
+
 def rule_teid_spoof(pkt: Packet, state: DetectorState) -> list[Finding]:
     """R2: a TEID previously seen from IP A now arrives from IP B."""
-    if not pkt.haslayer(GTP_U_Header) or not pkt.haslayer(IP):
+    if not pkt.haslayer(GTP_U_Header):
+        return []
+    net = outer_net(pkt)
+    if net is None:
         return []
     teid = int(pkt[GTP_U_Header].teid)
-    src = pkt[IP].src
-    owner = state.teid_owner.get(teid)
+    src, dst = net.src, net.dst
+    # A TEID is unique only within the endpoint that receives it (TS 29.281),
+    # so ownership is keyed on (receiving address, TEID). Keying on the TEID
+    # alone conflated a UPF's uplink tunnel with a gNB's downlink tunnel that
+    # happened to carry the same number.
+    key = (dst, teid)
+    owner = state.teid_owner.get(key)
     if owner is None:
-        state.teid_owner[teid] = src
+        state.teid_owner[key] = src
         return []
     if owner != src:
-        # Suppress legitimate handovers: if an allowlist of gNB IPs is
-        # configured and BOTH the old and new source are known gNBs, this is a
-        # normal Xn/N2 handover, not a spoof. Track the latest owner either way.
-        state.teid_owner[teid] = src
-        if state.known_gnb_ips and state.is_known_gnb(src) and state.is_known_gnb(owner):
+        # With the allowlist configured, a known gNB always takes ownership
+        # and stays silent: that covers a legitimate Xn/N2 handover, and the
+        # legitimate gNB reclaiming a tunnel a rogue happened to be seen on
+        # first (for example after a detector restart).
+        if state.known_gnb_ips and state.is_known_gnb(src):
+            state.teid_owner[key] = src
             return []
+        # Anything else is a conflict. Ownership is NOT transferred (first
+        # source wins), so a rogue cannot take the TEID over. Transferring it
+        # made the legitimate owner's next packet look like the spoof and hid a
+        # repeated spoof from the same rogue; the live corpus, where spoofs and
+        # legitimate packets interleave on one TEID, exposed both.
         return [Finding(
             rule="R2_TEID_SPOOF", severity="high",
-            src=src, dst=pkt[IP].dst, teid=teid,
+            src=src, dst=dst, teid=teid,
             detail=f"TEID {hex(teid)} first bound to {owner}, now sourced from {src}.",
         )]
     return []

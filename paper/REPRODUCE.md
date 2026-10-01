@@ -5,7 +5,7 @@ every result in `PAPER.md` and `RESULTS.md` from a clean checkout of
 `gtp-abuse-detector`. It intentionally does **not** rely on `make` targets — every
 command is spelled out so you can see (and adapt) exactly what runs. `make` is
 still the fast path day-to-day (`make test`, `make eval`, `make build`,
-`make lab-up`, `make attack`); this guide exists so results are reproducible
+`make lab-up`, `make attack`, `make live-score`); this guide exists so results are reproducible
 even without trusting the Makefile as a black box, and so every operational
 gotcha we hit is written down in one place.
 
@@ -40,11 +40,14 @@ python3 -m pytest tests/ -q
 cd ..
 ```
 
-Expected: `21 passed` across five files. Every abuse class (`R1`–`R4`) is
+Expected: `24 passed` across five files. Every abuse class (`R1`–`R4`) is
 detected, `test_detector_survives_garbage` confirms a malformed GTP-U packet
 never raises, the realistic benign corpus produces no false positives, all
 eleven crafted evasions behave as documented, the naive baseline provably
-misses GTP-in-GTP, and the seeded corpus is byte-reproducible.
+misses GTP-in-GTP, and the seeded corpus is byte-reproducible. Three R2 tests
+cover the TEID-ownership fix: a spoofing source never takes a TEID over, a TEID
+is scoped by the endpoint that receives it, and the exact corpus that
+`make attack` sends scores with no false positive and no false negative.
 
 ### A.3 Run the offline benchmark
 
@@ -91,7 +94,7 @@ python3 attacker/generate_attacks.py --count 200 --benign 200 --seed 1337 \
 
 ---
 
-## Part B — Live path (Docker, full 5G core + RAN, ~15–20 minutes)
+## Part B — Live path (Docker, full 5G core + RAN, ~15–20 minutes, plus about 17 minutes for the attack send)
 
 Needs a Linux host with a real kernel, `/dev/net/tun`, and Docker Compose v2.
 This was run on Ubuntu with `docker compose` v5.3.1.
@@ -141,6 +144,13 @@ docker compose logs -f core
 # Ctrl-C once you see: "[core] all NFs launched; tailing logs"
 ```
 
+Earlier in the same log the core prints
+`[core] ogstun 10.45.0.1/16 up, NAT for 10.45.0.0/16`. That line means the
+UPF's tunnel device has its address and the UE pool is NATed out. If it is
+missing, the core image predates that fix: the UPF then decapsulates uplink
+GTP-U, logs `ogs_tun_write() failed` for every packet, and no UE packet reaches
+the data network. Rebuild `core` (B.2) and recreate it (B.5).
+
 Then check the RAN completed its full bring-up sequence:
 
 ```bash
@@ -161,14 +171,44 @@ see **Gotcha B.5** below (this is what happened during our own first run).
 
 ### B.4 Prove N3 is carrying real user-plane traffic
 
+To see the tunnel at work, start a capture on the core's N3 interface in a
+second terminal first (the `core` image ships `tcpdump`):
+
 ```bash
-docker compose exec ran ./build/nr-binder 10.45.0.2 ping -c3 8.8.8.8
+docker compose exec core tcpdump -ni eth0 udp port 2152
 ```
 
-(Use whatever `10.45.0.x` address your own `uesimtun0` line reported — it
-increments on every UE re-registration.) A successful `3 packets transmitted,
-3 received, 0% packet loss` proves ICMP is traversing gNB → N3/GTP-U → UPF →
-data network and back, for real, through the simulated 5G stack.
+Then send the ping out of the UE's tunnel interface:
+
+```bash
+docker compose exec ran ping -I uesimtun0 -c3 8.8.8.8
+```
+
+Expected: `3 packets transmitted, 3 received` and `0% packet loss` (the line may
+also show `+N duplicates`; see the note on `(DUP!)` below). The capture
+shows each echo request as uplink GTP-U from the gNB (`10.10.10.20`) to the UPF
+(`10.10.10.10`), and each reply coming back as downlink GTP-U from
+`10.10.10.10` to `10.10.10.20`. A second capture on the UPF's tunnel device
+(`docker compose exec core tcpdump -ni ogstun icmp`) shows the decapsulated
+ICMP between the UE address and `8.8.8.8`, which the core then NATs out of
+`eth0`. In our run the session's uplink TEID was `0xb2aa` and its downlink TEID
+`0x1`; yours can differ. The detector counts these packets (its heartbeat's
+`packets_seen` rises, see B.6) and raises no finding. Together this proves ICMP
+traversed UE → gNB → N3/GTP-U → UPF → data network and back through the
+simulated 5G stack.
+
+You may also see `(DUP!)` replies. They come from the host's own network (each
+reply reaches the core's `eth0` more than once), not from the lab.
+
+Do not use `docker compose exec ran ./build/nr-binder 10.45.0.2 ping -c3 8.8.8.8`,
+the check earlier versions of this guide gave. It returns replies even when the
+UE data path is broken. `nr-binder` works by preloading `./libdevbnd.so`, a
+path relative to the current directory; run from `/ueransim`, the loader cannot
+find it, prints `ERROR: ld.so: object './libdevbnd.so' from LD_PRELOAD cannot be
+preloaded ... ignored.`, and runs `ping` unbound. That ping leaves `ran`'s `eth0` with source
+`10.10.10.20` by the Docker default route and never touches the tunnel; a
+capture on the core shows zero GTP-U while it runs. If your capture shows no
+GTP-U but the ping still gets replies, the ping did not use the tunnel.
 
 ### B.5 Gotcha: `network_mode: service:core` goes stale if you recreate `core`
 
@@ -200,8 +240,10 @@ afterward every time.
 docker compose logs -f detector
 ```
 
-It prints nothing while traffic is benign (this is by design — see
-`PAPER.md` §4), and one JSON line per finding when it isn't.
+While traffic is benign it prints only a heartbeat line every two seconds,
+carrying a running `packets_seen` count, and no findings (this is by design,
+see `PAPER.md` §4). It prints one JSON line per finding when traffic is not
+benign.
 
 ### B.7 Fire the live attack corpus
 
@@ -210,12 +252,23 @@ docker compose run --rm attacker --send --iface eth0 \
     --count 400 --benign 100 --upf 10.10.10.10 --smf 10.10.10.11 --gnb 10.10.10.20
 ```
 
-You will see `WARNING: MAC address to reach destination not found. Using
-broadcast.` for packets addressed to hosts with no real ARP entry (e.g.
-`8.8.8.8`, benign UE-pool addresses) — this is expected and harmless; the
-frames still traverse the shared namespace and reach the detector (see
-`FINDINGS.md` finding #4 for why this matters and what it looked like
-*before* the fix).
+The `attacker` container is not a UE and holds no PDU session. It shares the
+core's network namespace (`network_mode: service:core`) and writes crafted
+GTP-U with a raw socket onto the core's `eth0` (the N3 interface), addressed to
+the UPF. UERANSIM does not encapsulate these packets. This stands in for the
+on-path position of the threat model. The corpus is the same 500 packets on
+every run (seed 1337: 100 benign, 88 `teid_spoof`, 82 `gtp_in_gtp`,
+80 `inner_to_core`, 79 `pfcp_smuggle`, 71 `ngap_smuggle`). Every packet uses
+TEID `0x1` and outer destination `10.10.10.10`; the outer source is
+`10.10.10.20` except for `teid_spoof`, which uses `10.10.10.66`.
+
+The send takes about 17 minutes. Every packet is addressed to the UPF, and from
+inside the core's own namespace Scapy cannot resolve a MAC address for that
+address, so it prints `WARNING: MAC address to reach destination not found.
+Using broadcast.` and sends each frame as a broadcast. This is expected and
+harmless: the frames still reach `eth0` and the detector sees every one (see
+`FINDINGS.md` finding #4 for why the send path matters and what it looked like
+*before* that fix).
 
 Then re-check the detector:
 
@@ -225,7 +278,10 @@ docker compose logs detector | grep '"rule"' | tail -30
 
 You should see a live mix of `R1_GTP_IN_GTP`, `R2_TEID_SPOOF`,
 `R3_CP_SMUGGLING`, and `R4_INNER_TO_CORE` findings, each carrying real
-`src`/`dst`/`teid` values from the lab bridge.
+`src`/`dst`/`teid` values from the lab bridge. Every `R2_TEID_SPOOF` line should
+have `"src": "10.10.10.66"`. An R2 line with `"src": "10.10.10.20"` means the
+detector image predates the R2 ownership fix: it is flagging the gNB's own
+packet after a spoof (see `RESULTS.md` §4.3).
 
 ### B.8 Tally a full run
 
@@ -236,19 +292,84 @@ from collections import Counter
 c = Counter()
 n = 0
 for line in sys.stdin:
-    line = line.split("detector-1  |", 1)[-1].strip()
-    if line.startswith("{") and "\"rule\"" in line:
-        try:
-            d = json.loads(line); c[d["rule"]] += 1; n += 1
-        except Exception:
-            pass
+    i = line.find("{")
+    if i < 0 or "\"rule\"" not in line:
+        continue
+    try:
+        d = json.loads(line[i:]); c[d["rule"]] += 1; n += 1
+    except Exception:
+        pass
 print("total findings:", n)
 for k, v in sorted(c.items()):
     print(f"  {k}: {v}")
 '
 ```
 
-### B.9 Tear down
+Expected, for one `make attack` run on a freshly started detector:
+
+```
+total findings: 550
+  R1_GTP_IN_GTP: 82
+  R2_TEID_SPOOF: 88
+  R3_CP_SMUGGLING: 150
+  R4_INNER_TO_CORE: 230
+```
+
+There are more findings than the 400 malicious packets because rules overlap:
+every `pfcp_smuggle` and `ngap_smuggle` packet raises both R3 and R4, since its
+inner destination is the UPF. R2 fires once per `teid_spoof` packet, and the
+100 benign packets and the B.4 tunnel ping raise nothing. The log accumulates,
+so a second `make attack` adds its findings to the same count. For a clean
+tally, recreate the detector first
+(`docker compose up -d --force-recreate detector`): that starts a new log and
+empty detector state, while a plain restart keeps the old log. For comparison,
+a detector image from before the R2 ownership fix gave 608 findings on the same
+packets in a freshly started lab (R1 82, R2 146, R3 150, R4 230).
+
+### B.9 Score the live corpus per packet
+
+The live tally counts findings, not packets. To score the same 500 packets
+against their labels, rebuild the identical seeded corpus with its labels and
+replay it through the detector with the live settings. No Docker is needed;
+`make live-score` runs exactly these two commands:
+
+```bash
+python3 attacker/generate_attacks.py --count 400 --benign 100 \
+    --upf 10.10.10.10 --smf 10.10.10.11 --gnb 10.10.10.20 \
+    --write captures/live_corpus.pcap --labels-out captures/live_corpus.labels.json
+python3 detector/gtpu_detector.py pcap --file captures/live_corpus.pcap \
+    --labels captures/live_corpus.labels.json \
+    --core-ips 10.10.10.10,10.10.10.11 --gnb-ips 10.10.10.20,10.10.10.21 \
+    --metrics-out captures/live_corpus.metrics.json
+```
+
+It prints one line per finding, then a JSON report (also written to
+`captures/live_corpus.metrics.json`). Expected, ignoring the host-dependent
+`latency` block:
+
+```
+"rule_hits": {
+  "R4_INNER_TO_CORE": 230,
+  "R2_TEID_SPOOF": 88,
+  "R1_GTP_IN_GTP": 82,
+  "R3_CP_SMUGGLING": 150
+},
+"classification": {
+  "tp": 400,
+  "fp": 0,
+  "fn": 0,
+  "tn": 100,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1": 1.0,
+  "false_positive_rate": 0.0
+}
+```
+
+The per-rule counts match the live tally in B.8. Part C shows how to check that
+the two runs produce the same findings one for one.
+
+### B.10 Tear down
 
 ```bash
 docker compose down          # stop and remove containers, keep volumes
@@ -271,11 +392,39 @@ cat eval/RESULTS.md
 # they should be the same four rule IDs, R1–R4, in both.
 ```
 
-Rule-hit *counts* will not match exactly between the two runs (different
-random seed / packet mix / live ARP-driven timing), but rule *coverage*
-should: every class the offline corpus exercises should also appear at least
-once in a live run of comparable size. See `RESULTS.md` §4 for the actual
-numbers from both runs used in this paper.
+Rule-hit *counts* will not match between `run_eval.py` and a live run (the two
+corpora differ in size and composition), but rule *coverage* should: every
+class the offline corpus exercises should also appear at least once in a live
+run of comparable size. See `RESULTS.md` §4 for the actual numbers from both
+runs used in this paper.
+
+For the identical corpus the match is exact. After one `make attack` on a
+freshly started detector (B.8) and the B.9 scoring commands, compare the live
+findings with an offline pass over `captures/live_corpus.pcap`, field by field
+and in order. Run this before B.10, while the detector container still exists,
+because the first command reads its log:
+
+```bash
+docker compose logs detector > captures/live_detector.log
+python3 detector/gtpu_detector.py pcap --file captures/live_corpus.pcap --json \
+    --core-ips 10.10.10.10,10.10.10.11 --gnb-ips 10.10.10.20,10.10.10.21 \
+    > captures/live_corpus.offline.log
+python3 - captures/live_detector.log captures/live_corpus.offline.log <<'EOF'
+import json, sys
+def load(path):
+    out = []
+    for line in open(path):
+        i = line.find("{")
+        if i >= 0 and '"type": "finding"' in line:
+            d = json.loads(line[i:])
+            out.append((d["rule"], d["src"], d["dst"], d["teid"], d["detail"]))
+    return out
+live, offline = load(sys.argv[1]), load(sys.argv[2])
+print("live:", len(live), "offline:", len(offline), "identical:", live == offline)
+EOF
+```
+
+Expected: `live: 550 offline: 550 identical: True`. Only the timestamps differ.
 
 ---
 
@@ -331,8 +480,10 @@ Expected Zeek result: exactly **one** GTPv1 tunnel (the outer one, never a
 nested second tunnel); `conn.log` surfaces the inner connections of the benign
 packet (ICMP to `8.8.8.8`) and the smuggle packet (UDP to `8805`) via
 `tunnel_parents`, but the bare-nested packet's inner address (`10.45.0.1`)
-never appears and no `weird.log` is written. Zeek's GTP-U analyzer forwards the
-decapsulated payload to its IP analyzer, which rejects the nested GTP-U header
-as not a valid IP packet and drops it silently. Scapy, tshark and Zeek, three
+never appears and no `weird.log` is written. Zeek's GTPv1 analyzer finds that
+the decapsulated payload is neither IPv4 nor IPv6, records one analyzer
+violation in `analyzer.log`, `non-IP packet in GTPv1`, and does not pass the
+payload on, so no inner connection or second tunnel appears. The violation does
+not identify the payload as a tunnel. Scapy, tshark and Zeek, three
 independently written implementations, therefore all miss the bare-nested form,
-which is the evidence behind `PAPER` / manuscript Section 7.3.
+which is the evidence behind `PAPER.md` §6.4 and manuscript Section 4.7.

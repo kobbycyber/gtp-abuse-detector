@@ -11,7 +11,8 @@ There are two ways to run this project, and you do not need both:
   produces the research numbers and always works. Start here. (~5 minutes.)
 - Live path: a real (simulated) 5G core and radio in Docker, with the detector
   tapping live traffic. It is heavier, but it proves the detector works on the
-  wire. (~20 minutes, mostly downloads.)
+  wire. (~20 minutes, mostly downloads, plus about 17 minutes for the attack
+  send.)
 
 If you only have 5 minutes, do Part 3 and Part 4 and stop. That is enough to
 reproduce the headline results.
@@ -36,10 +37,10 @@ abuse, plus a lab to prove it works.
    or papers with no runnable code.
 2. A subtle detection trap. The most dangerous abuse, a GTP tunnel nested inside
    another GTP tunnel ("GTP-in-GTP"), is invisible to the obvious detector. The
-   standard packet-parsing library (Scapy) hands you the inner payload as opaque
-   bytes, so a naive `haslayer()` check misses 100% of real nested tunnels while
-   still passing in-memory unit tests. You only catch it if you actively
-   re-parse the raw bytes.
+   standard packet-parsing library (Scapy) does not decode the nested header as
+   GTP (it guesses PPP or leaves plain bytes), so a naive `haslayer()` check
+   misses 100% of real nested tunnels while still passing in-memory unit tests.
+   You only catch it if you actively re-parse the raw bytes.
 
 ### What was solved (this is the contribution)
 
@@ -60,12 +61,18 @@ abuse, plus a lab to prove it works.
     them;
   - an evasion suite that documents, honestly, which attacks the detector
     catches and which are inherent blind spots.
-- Five real deployment bugs found and fixed by actually running the live lab (a
-  missing dependency that hung bring-up forever, a config-patch that silently
-  did nothing, a lost file permission, a traffic generator emitting malformed
-  frames, and a Docker networking trap). These are documented in
-  `paper/FINDINGS.md`. They are a case study in why "passes every test" is not
-  the same as "works on the wire".
+- Seven real defects found and fixed by actually running the live lab. Five
+  showed up at first bring-up (a missing dependency that hung bring-up forever,
+  a config-patch that silently did nothing, a lost file permission, a traffic
+  generator emitting malformed frames, and a Docker networking trap). Two more
+  showed up when the live attack traffic was scored packet by packet: the
+  phone's data path had never worked, hidden by a ping check that skipped the
+  tunnel, and R2 handed a tunnel to whichever source sent last. These are
+  documented in `paper/FINDINGS.md`. They are a case study in why "passes every
+  test" is not the same as "works on the wire".
+- A labelled live corpus: `make live-score` rebuilds the exact 500 packets that
+  `make attack` sends, with their labels, and scores them packet by packet (400
+  true positives, 100 true negatives, no false positives, no misses).
 
 You do not need to understand all of this to run the lab. Come back to it after
 you have seen the numbers.
@@ -183,12 +190,14 @@ make test
 **You should see:**
 
 ```
-21 passed
+24 passed
 ```
 
 That means: every attack class is detected, the realistic benign traffic stays
 clean, all 11 evasion cases behave exactly as documented, the naive baseline
-provably misses GTP-in-GTP, and the seeded corpus is byte-reproducible.
+provably misses GTP-in-GTP, R2 never lets a spoofing source take over a tunnel,
+the exact `make attack` corpus scores clean, and the seeded corpus is
+byte-reproducible.
 
 ### 4c. Run the full evaluation
 
@@ -219,6 +228,7 @@ are done with the minimum path.
 
 ```bash
 make evasions                              # list every crafted evasion + verdict
+make live-score                            # score the live attack corpus (Part 5f)
 python3 attacker/generate_attacks.py --class gtp_in_gtp   # print one attack packet
 python3 attacker/benign_traffic.py --count 40            # show the benign traffic mix
 ```
@@ -293,12 +303,26 @@ The phone now has IP `10.45.0.2` and a working tunnel.
 ### 5e. Prove real data flows through the tunnel
 
 ```bash
-docker compose exec ran ./build/nr-binder 10.45.0.2 ping -c3 8.8.8.8
+docker compose exec ran ping -I uesimtun0 -c3 8.8.8.8
 ```
 
-**You should see** `0% packet loss` (you may also see harmless `DUP!` lines, an
-artifact of the virtual network, safe to ignore). This confirms real traffic
-went phone, radio, N3/GTP-U, core, internet, and back.
+**You should see** `3 received` and `0% packet loss`. `-I uesimtun0` makes the
+ping leave through the phone's tunnel interface, so this confirms real traffic
+went phone, radio, N3/GTP-U, core, internet, and back. If `make logs` is
+running, the detector's `packets_seen` count goes up and no findings appear.
+
+You may also see `(DUP!)` replies. They come from the host's own network (each
+reply reaches the core's `eth0` more than once), not from the lab, and are safe
+to ignore.
+
+> Why not `./build/nr-binder 10.45.0.2 ping ...`? Earlier versions of this
+> guide used it, and it got replies even while the phone's data path was
+> broken. `nr-binder` works by preloading `./libdevbnd.so`, a path relative to
+> the current directory, and run from `/ueransim` the loader cannot find it. It
+> prints `ERROR: ld.so: object './libdevbnd.so' from LD_PRELOAD cannot be
+> preloaded ... ignored.` above the ping output and runs `ping` unbound. That
+> ping went out of `ran`'s `eth0` by the normal Docker route with source
+> `10.10.10.20` and never touched the tunnel. Use `ping -I uesimtun0` instead.
 
 ### 5f. Fire the attack traffic and watch the detector catch it
 
@@ -315,8 +339,11 @@ cd ~/gtp-abuse-detector
 make attack
 ```
 
-> Note: `make attack` can take a couple of minutes, because Scapy resolves each
-> synthetic destination before sending. That is normal.
+> Note: `make attack` takes about 17 minutes for its 500 packets. The attacker
+> shares the core's network namespace, and from there Scapy cannot resolve a
+> MAC address for the UPF address. It prints `MAC address to reach destination
+> not found. Using broadcast.` and sends each frame as a broadcast. That is
+> slow but normal, and the detector still sees every packet.
 
 **You should see**, in the first terminal, JSON findings streaming past, e.g.:
 
@@ -330,6 +357,33 @@ make attack
 All four rule types firing on real transmitted traffic is the live proof that
 the detector works. The most important is `R1_GTP_IN_GTP`, the nested-tunnel
 case that a naive detector misses entirely.
+
+When the send has finished, count the findings per rule:
+
+```bash
+docker compose logs detector | grep -o '"rule": "R[1-4]_[A-Z_]*"' | sort | uniq -c
+```
+
+**You should see**, for one `make attack` run on a freshly started lab:
+
+```
+     82 "rule": "R1_GTP_IN_GTP"
+     88 "rule": "R2_TEID_SPOOF"
+    150 "rule": "R3_CP_SMUGGLING"
+    230 "rule": "R4_INNER_TO_CORE"
+```
+
+That is 550 findings. There are more findings than the 400 malicious packets
+because rules overlap: every `pfcp_smuggle` and `ngap_smuggle` packet raises
+both R3 and R4, since its inner destination is the UPF. R2 fires once per
+`teid_spoof` packet (88), and the 100 benign packets raise nothing. A second
+`make attack` adds its findings to the same log.
+
+To check the same 500 packets against their labels, run `make live-score` (no
+Docker needed). It writes the identical corpus to `captures/live_corpus.pcap`
+with labels, replays it through the detector with the live settings, and
+should report the same per-rule counts with `"tp": 400`, `"fp": 0`, `"fn": 0`,
+`"tn": 100` (precision, recall and F1 1.0, false-positive rate 0.0).
 
 ### 5g. The live browser dashboard
 
@@ -397,12 +451,13 @@ pkill -f viz/server.py
 
 You have fully reproduced the project if:
 
-- [ ] `make test` gives **21 passed**
+- [ ] `make test` gives **24 passed**
 - [ ] `make eval` gives **P=1.0 R=1.0 F1=1.0 FPR=0.0**, and naive **R1 recall 0.0**
 - [ ] `eval/RESULTS.md` shows the baseline comparison, ablation, and evasion tables
+- [ ] `make live-score` gives **tp 400, fp 0, fn 0, tn 100**
 - [ ] (live) the radio log shows NG Setup, Registration, PDU Session, and uesimtun0
-- [ ] (live) the tunnel ping shows **0% packet loss**
-- [ ] (live) `make attack` makes the detector emit R1 to R4 findings
+- [ ] (live) `ping -I uesimtun0` through the tunnel shows **0% packet loss**
+- [ ] (live) `make attack` makes the detector emit **550 findings: R1 82, R2 88, R3 150, R4 230**
 - [ ] (live) the dashboard at `http://<ip>:8090` leaves "waiting for detector" and shows counters climbing and findings scrolling during an attack
 
 ---
@@ -414,7 +469,9 @@ You have fully reproduced the project if:
 | `docker: permission denied` | You are not in the `docker` group yet. Run `newgrp docker`, or log out and back in. |
 | `ran` log shows `Connection refused` / `Cell selection failure` | The startup race in Part 5c. Run `docker compose restart ran` after the core is up. This is normal, not a failure. |
 | No `uesimtun0` / registration fails | The subscriber keys must match: `ran/ue.yaml` `key`/`op` must equal `.env` `KI`/`OPC`, and `supi` must be `imsi-<IMSI>`. The defaults already match; only an edit breaks this. |
-| `make attack` seems to hang | Expected. Scapy resolves each destination before sending, which can take a couple of minutes. Watch `make logs` to see findings arrive. |
+| `make attack` seems to hang | Expected. The send takes about 17 minutes for 500 packets: from inside the core's namespace Scapy cannot resolve a MAC address for the UPF, prints `MAC address to reach destination not found. Using broadcast.`, and broadcasts each frame. Watch `make logs` to see findings arrive. |
+| Tunnel ping (Part 5e) gets no replies, and `docker compose logs core` shows `ogs_tun_write() failed` | The core image predates the entrypoint fix that sets up the UPF's tunnel device (`ogstun`). Rebuild and recreate the core, then re-attach the containers that depend on it (Finding 5): `docker compose build core && docker compose up -d core && docker compose up -d --force-recreate detector && sleep 20 && docker compose restart ran`. A fixed core logs `[core] ogstun 10.45.0.1/16 up, NAT for 10.45.0.0/16` at startup. |
+| Tunnel ping shows `(DUP!)` replies | Harmless. They come from the host's own network (each reply reaches the core's `eth0` more than once), not from the lab. |
 | detector shows only heartbeats, no findings | It only speaks up for abuse; benign traffic is silent by design. Run `make attack` to generate findings. |
 | Dashboard unreachable at `http://<ip>:8090` | The server is not running. Start `python3 viz/server.py` from the project folder. It binds `0.0.0.0` (all interfaces), so it is not a container or firewall issue. Confirm with `ss -tlnp \| grep :8090`. |
 | Dashboard stuck on "waiting for detector" | The lab is not up, or the detector container does not exist yet. Bring the lab up (Part 5b to 5c); the page recovers on its own. |
@@ -434,13 +491,13 @@ You have fully reproduced the project if:
 | `detector/baselines.py` | The naive detector, used to prove the contribution |
 | `detector/gtpu_detector.py` | The runnable detector (live sniff or offline replay) |
 | `attacker/generate_attacks.py` | The GTP-U abuse traffic generator (lab-only) |
-| `attacker/benign_traffic.py` | The realistic 11-category benign traffic generator |
+| `attacker/benign_traffic.py` | The realistic 12-category benign traffic generator |
 | `attacker/evasions.py` | The crafted evasion suite |
 | `eval/benchmark.py` | The full evaluation harness (`make eval` runs this) |
 | `eval/RESULTS.md` | The generated results document |
 | `viz/server.py` + `viz/index.html` | The live browser dashboard (host process + page) |
 | `paper/PAPER.md` | The full research write-up |
-| `paper/FINDINGS.md` | The five deployment bugs, with root-cause analysis |
+| `paper/FINDINGS.md` | The seven defects the live lab exposed, with root-cause analysis |
 | `docs/ARCHITECTURE.md` | How the pieces fit together and why |
 | `docs/LAB_GUIDE.md` | A shorter operator-oriented lab reference |
 
@@ -460,6 +517,14 @@ inside the core's own network namespace (`network_mode: service:core` in
 place a production GTP firewall sits. It reads packets with Scapy, runs four
 rules over each one, and prints a JSON finding per hit.
 
+The attacker is not the phone. The `attacker` container also shares the core's
+network namespace, is not a UE, and holds no PDU session. `make attack` writes
+crafted GTP-U packets with a raw socket onto the core's `eth0` (the N3
+interface), addressed to the UPF. The radio simulator does not carry or wrap
+these packets. This stands in for an attacker who has an on-path position on
+N3, which is the threat this project models. The phone's own session is plain
+IPv4 user traffic, and it raises no findings.
+
 ### 9.2 The four rules (`detector/rules.py`)
 
 | ID | Name | Severity | What it catches |
@@ -471,19 +536,31 @@ rules over each one, and prints a JSON finding per hit.
 
 Why R1 is the headline. When Scapy parses a GTP-U packet it decides how to read
 the inner payload by looking at the first 4 bits: `4` means IPv4, `6` means
-IPv6. A nested GTP header starts with neither, so Scapy gives up and hands you
-the inner bytes as opaque `Raw`. A detector that just calls `haslayer()` misses
-100% of real nested tunnels. R1 fixes this by re-reading those raw bytes as a
-GTP header, but only if they pass a length-consistency check and actually carry
-a routable inner IP, so it does not false-alarm on legitimate non-IP
-("Unstructured") payloads. `detector/baselines.py` implements the naive version
-so `make eval` can show the difference (naive R1 recall 0.0 vs robust 1.0).
+IPv6. A nested GTP header starts with neither, so Scapy guesses some other
+layer: inside a realistic G-PDU outer it reads the nested header as `PPP`
+followed by `Raw`, and under a bare outer it leaves plain `Raw`. No GTP layer
+appears, so a detector that just calls `haslayer()` misses 100% of real nested
+tunnels. R1 fixes this: any inner payload that Scapy did not decode as IPv4,
+IPv6 or a GTP header is re-read from its raw bytes as a GTP header, but only if
+those bytes pass a length-consistency check and actually carry a routable inner
+IP, so it does not false-alarm on legitimate non-IP ("Unstructured") payloads.
+`detector/baselines.py` implements the naive version so `make eval` can show the
+difference (naive R1 recall 0.0 vs robust 1.0).
+
+How R2 tracks tunnels. A TEID is only unique at the endpoint that receives it
+(3GPP TS 29.281), so R2 keys each tunnel on the receiving address (the outer
+destination IP) plus the TEID. The first source seen owns the tunnel. A packet
+from any other source raises R2 and does not take ownership, so a rogue cannot
+take over a tunnel, and the real owner's next packet stays clean.
 
 R2 and handovers. A legitimate handover moves a phone between two base stations:
 the tunnel ID stays the same but the source IP changes, which looks exactly like
 a spoof. Supplying the operator's known base-station IPs (`--gnb-ips`) tells R2
-to treat a change between known gNBs as a handover and stay quiet, while still
-flagging a tunnel re-sourced from an unknown IP.
+that a known gNB always takes ownership with nothing raised, which covers a
+handover and also a gNB reclaiming a tunnel a rogue was seen on first, while a
+tunnel re-sourced from an unknown IP is still flagged. Without the allowlist every change is flagged and ownership never
+moves, so a handed-over session keeps raising R2 for as long as it sends from
+the new gNB.
 
 ### 9.3 The traffic (`attacker/`)
 
@@ -521,7 +598,7 @@ An examiner's natural questions ("did you test realistic benign traffic?", "what
 does a naive detector score?", "what are the false positives?", "what can evade
 it?") are each answered by one of these sections on purpose.
 
-### 9.5 The five deployment findings (`paper/FINDINGS.md`)
+### 9.5 The seven live-lab findings (`paper/FINDINGS.md`)
 
 Bringing the live lab up for the first time exposed five real bugs that the
 offline tests structurally could not catch: a missing `mongosh` dependency
@@ -532,15 +609,32 @@ the detector. They are written up as a case study in why "passes every test" is
 not the same as "works on the wire": the same lesson as R1, one layer down in
 deployment. If your live bring-up misbehaves, read this file first.
 
+Scoring the live attack traffic packet by packet, during revision, found two
+more:
+
+- The phone's data path never worked. Nothing in the container configured the
+  UPF's tunnel device (`ogstun`), so the UPF unwrapped each uplink packet and
+  then logged `ogs_tun_write() failed`; no phone packet reached the internet.
+  The documented `nr-binder` ping hid this because it never used the tunnel
+  (see Part 5e). `core/entrypoint.sh` now gives `ogstun` the address
+  `10.45.0.1/16`, brings it up, and adds a NAT rule for the phone address pool.
+- R2 handed a tunnel to whichever source sent last, and keyed it on the TEID
+  alone. On the live corpus, where spoofs and the gNB's own packets share one
+  TEID, a benign packet right after a spoof was flagged (16 false positives)
+  and a spoof right after another spoof was missed (15 misses). The offline
+  corpus never showed this because it gives every spoof its own victim TEID.
+  With first-source-wins ownership (Part 9.2) both counts are zero.
+
 ---
 
 ## Part 10: command cheat-sheet
 
 ```bash
 # --- offline (no Docker/root) ---
-make test            # 21 unit tests
+make test            # 24 unit tests
 make eval            # full benchmark -> eval/RESULTS.md
 make evasions        # list the evasion suite and verdicts
+make live-score      # score the exact `make attack` corpus packet by packet
 cat eval/RESULTS.md  # read the results
 
 # --- live lab (Docker) ---
@@ -548,12 +642,12 @@ make build           # build images (first time only)
 make lab-up          # start mongo + core + ran + detector
 sleep 20 && docker compose restart ran   # REQUIRED: fix the startup race
 make logs            # follow detector findings
-make attack          # fire the abuse corpus at the lab
+make attack          # fire the abuse corpus at the lab (about 17 minutes)
 python3 viz/server.py    # dashboard at http://<ip>:8090
 make lab-down        # stop the lab   (docker compose down -v to wipe volumes)
 
 # --- prove real tunnel traffic ---
-docker compose exec ran ./build/nr-binder 10.45.0.2 ping -c3 8.8.8.8
+docker compose exec ran ping -I uesimtun0 -c3 8.8.8.8
 ```
 
 ---
