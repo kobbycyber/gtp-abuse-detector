@@ -36,6 +36,9 @@ from external_eval import wilson  # noqa: E402
 from rules import evaluate  # noqa: E402
 
 
+AT_RISK = ("unstructured", "handover")
+
+
 def with_session_container(pkt, rng: random.Random):
     """Same packet, with a PDU Session Container on its outer GTP-U header."""
     raw = bytes(pkt)
@@ -59,6 +62,7 @@ def with_session_container(pkt, rng: random.Random):
 def score(seeds, benign_n, per_class_n, realistic):
     tot = {"robust": dict(tp=0, fp=0, fn=0, tn=0), "naive": dict(tp=0, fp=0, fn=0, tn=0)}
     per_class = {}
+    per_cat = {}
     per_seed = []
     for seed in seeds:
         pkts, labels, classes = benchmark.build_corpus(seed, benign_n, per_class_n)
@@ -72,15 +76,15 @@ def score(seeds, benign_n, per_class_n, realistic):
                 pred = bool(fn(IP(bytes(pkt)), st))
                 key = ("tp" if pred else "fn") if truth else ("fp" if pred else "tn")
                 c[key] += 1
-                if name == "robust" and truth:
-                    h = per_class.setdefault(cls, [0, 0])
+                if name == "robust":
+                    h = (per_class if truth else per_cat).setdefault(cls, [0, 0])
                     h[0] += pred
                     h[1] += 1
             for k in c:
                 tot[name][k] += c[k]
             if name == "robust":
                 per_seed.append({"seed": seed, **c})
-    return tot, per_class, per_seed
+    return tot, per_class, per_cat, per_seed
 
 
 def summarise(c):
@@ -106,7 +110,7 @@ def main():
     args = ap.parse_args()
     seeds = [int(s) for s in args.seeds.split(",")]
     assert not set(seeds) & {1337, 1, 2, 3, 4}, "held-out seeds must not overlap development seeds"
-    tot, per_class, per_seed = score(seeds, args.benign, args.per_class, args.realistic_outer)
+    tot, per_class, per_cat, per_seed = score(seeds, args.benign, args.per_class, args.realistic_outer)
     out = {
         "seeds": seeds,
         "realistic_outer": args.realistic_outer,
@@ -114,6 +118,15 @@ def main():
         "naive": summarise(tot["naive"]),
         "robust_recall_by_class": {k: {"hit": v[0], "total": v[1], "wilson95": wilson(v[0], v[1])}
                                    for k, v in sorted(per_class.items())},
+        "robust_fp_by_benign_category": {k: {"flagged": v[0], "total": v[1]}
+                                         for k, v in sorted(per_cat.items())},
+        # the only benign categories that could plausibly fire a rule (R1, R2)
+        "robust_at_risk_benign": {
+            "flagged": sum(per_cat.get(k, [0, 0])[0] for k in AT_RISK),
+            "total": sum(per_cat.get(k, [0, 0])[1] for k in AT_RISK),
+            "wilson95": wilson(sum(per_cat.get(k, [0, 0])[0] for k in AT_RISK),
+                               sum(per_cat.get(k, [0, 0])[1] for k in AT_RISK)),
+        },
         "per_seed_robust": per_seed,
     }
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)

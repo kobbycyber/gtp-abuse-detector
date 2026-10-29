@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One labelled live run with real subscriber traffic on every UE tunnel.
 #
-#   UE_COUNT=3 make lab-up            # bring the lab up with three UEs first
+#   set UE_COUNT=3 in .env, then make lab-up   # three UEs
 #   scripts/revision2/run_live.sh L1 2026 0x2 400 100
 #
 # Sends the seeded corpus onto N3 while the UEs ping through their tunnels,

@@ -96,6 +96,68 @@
       ]
     }
   },
+  "robust_fp_by_benign_category": {
+    "dns": {
+      "flagged": 0,
+      "total": 635
+    },
+    "fragmented": {
+      "flagged": 0,
+      "total": 370
+    },
+    "handover": {
+      "flagged": 0,
+      "total": 166
+    },
+    "icmp": {
+      "flagged": 0,
+      "total": 261
+    },
+    "ip_options": {
+      "flagged": 0,
+      "total": 129
+    },
+    "ipv6": {
+      "flagged": 0,
+      "total": 341
+    },
+    "ntp": {
+      "flagged": 0,
+      "total": 138
+    },
+    "quic": {
+      "flagged": 0,
+      "total": 697
+    },
+    "rtp_voip": {
+      "flagged": 0,
+      "total": 326
+    },
+    "spoof_victim": {
+      "flagged": 0,
+      "total": 1200
+    },
+    "unstructured": {
+      "flagged": 0,
+      "total": 168
+    },
+    "web_http": {
+      "flagged": 0,
+      "total": 876
+    },
+    "web_tls": {
+      "flagged": 0,
+      "total": 1896
+    }
+  },
+  "robust_at_risk_benign": {
+    "flagged": 0,
+    "total": 334,
+    "wilson95": [
+      8.673617379884035e-19,
+      0.011370596415301814
+    ]
+  },
   "per_seed_robust": [
     {
       "seed": 101,

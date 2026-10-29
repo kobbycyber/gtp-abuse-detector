@@ -1,160 +1,110 @@
 # GTP-U Abuse Lab
 
-An open-source, Dockerised testbed and **passive detection framework for GTP-U
-tunnel abuse**. It detects GTP-in-GTP nesting, TEID spoofing, and encapsulated
-control-plane smuggling (PFCP / NGAP) in the 5G/4G user plane, the abuse class
-that commercial GTP firewalls handle but no reproducible open tool does.
+A passive detector for GTP-U tunnel abuse in the 5G user plane, with a
+reproducible Docker testbed (Open5GS + UERANSIM), a seeded traffic generator
+with per-packet labels, and the evaluation behind the paper
 
-> **Scope / ethics.** Everything here targets a self-contained lab on a private
-> `10.10.10.0/24` bridge using the test PLMN `999/70`. The traffic generator in
-> `attacker/` exists solely to exercise the detector inside this lab. Do not
-> point it at any network you are not authorised to test; generating GTP-U abuse
-> against a live operator is illegal in most jurisdictions.
+> **Detecting bare-nested GTP-U tunnels that packet dissectors do not decode**
+> J. K. Fiagbor and O. Kornyo, KNUST. Manuscript: [`paper/manuscript_rev2.pdf`](paper/manuscript_rev2.pdf)
 
-## What's inside
+**Step-by-step guide for everything (install, offline, held-out, external data,
+comparators, live lab, figures): [`SETUP.md`](SETUP.md).**
 
-| Component | Role |
-|---|---|
-| `core/` | Open5GS all-in-one 5G core (AMF/SMF/UPF + support NFs) |
-| `ran/` | UERANSIM simulated gNB + UE (generates real GTP-U on N3) |
-| `detector/` | **The contribution**, passive Scapy detector + rules + metrics, plus a naive baseline (`baselines.py`) that quantifies the contribution |
-| `attacker/` | Lab-only traffic: abuse generator, realistic benign generator (`benign_traffic.py`), crafted evasion suite (`evasions.py`) |
-| `eval/` | Reproducible benchmark (`benchmark.py`) → `metrics.json` + `RESULTS.md`: metrics, baseline comparison, FP ablation, multi-seed stability, evasions |
+> **Scope and ethics.** Everything here targets a self-contained lab on a
+> private `10.10.10.0/24` network using the test PLMN `999/70`. The traffic
+> generator in `attacker/` exists only to exercise the detector inside this
+> lab. Do not point it at any network you are not authorised to test;
+> generating GTP-U abuse against a live operator is illegal in most
+> jurisdictions.
 
-## Two ways to run
+## The finding in one paragraph
 
-### 1. Offline evaluation, no 5G core, fully reproducible (start here)
+Scapy, Wireshark and Zeek decide what a GTP-U G-PDU carries from the version
+nibble of its first payload byte (4 = IPv4, 6 = IPv6). A second GTP-U header
+placed directly after the outer one starts with `0x3X`, so none of them decodes
+it as GTP-U, and a detector that asks "is the payload itself GTP-U?" never sees
+it and reports no error. This **bare-nested** form needs an on-path position on
+N3 or a non-IP (Unstructured/Ethernet) session; the **IP-wrapped** form an
+ordinary subscriber can send is decoded natively. The engine here walks the
+outer extension-header chain, re-dissects the payload behind a byte-level
+plausibility gate and a routable-inner guard, and raises R1.
 
-This is the path that produces your thesis numbers. It needs only Python + Scapy.
+## Results at a glance
+
+| Evaluation | Data | Result |
+|---|---|---|
+| Held-out seeds 101–110, realistic N3 framing | 13,203 packets (6,000 malicious) | recall 1.0 (95% CI 0.9994–1.0), FPR 0.0 (0–0.0005) |
+| Same, without extension-header handling | same | recall 0.8: every bare-nested packet missed |
+| Naive baseline (no re-parse) | same | bare-nested recall 0.0 |
+| Oulu 5G-CGAD benign (independent) | 6,218,456 GTP-U packets, 30 UEs | 0 findings |
+| Oulu 5G-CGAD GTP encapsulation | 290,225 packets (IP-wrapped) | all flagged |
+| Oulu 5G-CGAD TEID brute force | 10.9 M packets | not detected (documented blind spot) |
+| Live, 3 UEs, fresh seeds 2026 and 4242 | 1,000 malicious / 300 benign | 998 detected, 0 false positives, live = offline |
+| Zeek 8.2.2 / Suricata 8.0.7 + ET Open | per-class captures | Zeek flags only the IP-wrapped form; Suricata flags nothing |
+| Cost | one core | ~716 µs/packet, ~1,400 pkt/s |
+
+Every number has a result file in [`eval/results/revision2/`](eval/results/revision2/README.md).
+
+## Quick start (offline, 2 minutes, no Docker)
 
 ```bash
+git clone https://github.com/kobbycyber/gtp-abuse-detector.git
+cd gtp-abuse-detector
+python3 -m venv .venv && source .venv/bin/activate
 pip install scapy pytest
-make test      # 25 tests: abuse detected, realistic benign clean, evasions, baseline & repro locked
-make eval      # comprehensive benchmark -> eval/RESULTS.md
-make evasions  # list the crafted evasion suite (what the detector must / can't catch)
+make test        # 25 passed
+make eval        # development benchmark -> eval/RESULTS.md
+make heldout     # held-out seeds 101-110 -> eval/results/
 ```
 
-Reference result (primary seed 1337, 1,320-packet corpus whose 720 benign
-packets span **twelve** traffic categories, including adversarial
-Unstructured-PDU bytes and legitimate handovers, plus 120 victim flows):
-precision 1.0, recall 1.0, F1 1.0, false-positive rate 0.0, stable across five
-seeds, ≈1,400 pkt/s single core measured over the full dissect and evaluate
-cycle (dissection is about 73% of that cost; `eval/latency.py`). The evaluation also reports a **naive-baseline comparison**
-(the baseline misses 100% of GTP-in-GTP, this is the contribution,
-quantified), a **false-positive ablation** tracing every residual FP to a
-single mitigated cause, and an **evasion suite** documenting the detector's
-blind spots explicitly. See `eval/RESULTS.md`.
-
-### 2. Live lab, full stack in Docker
-
-Needs a host with a real kernel, `/dev/net/tun`, and the `docker compose` plugin.
-
-```bash
-make build
-make lab-up          # mongo + core + RAN + live detector
-make logs            # watch the detector; UE gets a 10.45.x.x address
-docker compose exec ran ping -I uesimtun0 -c3 8.8.8.8   # real UE traffic through N3
-make attack          # fire the abuse corpus at the lab UPF
-make live-score      # score the same corpus per packet against its labels (no Docker)
-make lab-down
-```
-
-The detector runs in the **core's network namespace**, so it taps the exact
-interface terminating N3, the same place you'd put a passive tap in production.
-The attacker container shares that namespace too. It is not a UE and holds no
-PDU session: it writes crafted GTP-U with a raw socket onto the core's `eth0`
-(the N3 interface), addressed to the UPF, standing in for the on-path position
-of the threat model. UERANSIM does not encapsulate these packets.
-
-Reference live result: `make attack` sends 500 packets (400 malicious, 100
-benign, seed 1337) and the detector raises 550 findings (R1 82, R2 88, R3 150,
-R4 230). Findings exceed malicious packets because rules overlap.
-`make live-score` writes the same corpus with labels and scores it per packet:
-precision, recall and F1 1.0, FPR 0.0. Before the R2 ownership fix the same
-corpus gave 608 findings, with 16 false positives and 15 false negatives. The
-send takes about 17 minutes, because Scapy falls back to broadcast frames
-inside the core's namespace.
-
-## Held-out, independent-data and live evaluation
-
-The revised manuscript (`paper/manuscript_rev2.docx`) adds evaluation on data
-not used during development:
-
-```bash
-python3 eval/heldout.py --realistic-outer --out results/heldout_ext.json   # seeds 101-110
-scripts/revision2/run_external.sh /path/to/5g-cgad attacks                 # Oulu 5G-CGAD
-UE_COUNT=3 make lab-up && scripts/revision2/run_live.sh L1 2026 0x2 400 100 # live, 3 UEs
-python3 eval/comparator_pcaps.py --out comparators/                         # pcaps for Zeek/Suricata
-python3 eval/latency.py --reps 5 --out results/latency.json
-```
-
-Results and how to read them: `eval/results/revision2/README.md`.
+`make help` lists every target. The full walkthrough, including the live 5G
+lab, is in [`SETUP.md`](SETUP.md).
 
 ## Detection rules
 
 | ID | Rule | Severity | What it catches |
 |---|---|---|---|
-| R1 | `GTP_IN_GTP` | critical | a GTP header nested inside GTP-U payload |
-| R2 | `TEID_SPOOF` | high | a TEID at an endpoint sent from a source other than its first owner |
-| R3 | `CP_SMUGGLING` | critical | PFCP/NGAP/GTP-C encapsulated in user data |
-| R4 | `INNER_TO_CORE` | high | inner IP aimed at a core NF, not the data network |
+| R1 | `GTP_IN_GTP` | critical | a GTP header nested inside the GTP-U payload |
+| R2 | `TEID_SPOOF` | high | a TEID, scoped to its receiving address, sent from a source other than its first owner |
+| R3 | `CP_SMUGGLING` | critical | SCTP, or UDP to PFCP/GTP-C/GTP-U ports, inside user data |
+| R4 | `INNER_TO_CORE` | high | an inner packet aimed at a configured core NF address |
 
-R1 actively **re-parses the inner bytes**: after capture, Scapy's default GTP-U
-binding renders a nested GTP header as a non-IP layer (its payload heuristic only
-expects IPv4/IPv6), so a naive `haslayer()` check misses tunnel-in-tunnel abuse.
-Which non-IP class Scapy guesses depends on the outer message type (`Raw` for a
-bare outer, `PPP` for a realistic G-PDU outer), so the re-parse keys on the raw
-bytes, not on the class. `tshark` and Zeek exhibit the same blind spot; see
-`paper/REPRODUCE.md` Part D and `docs/ARCHITECTURE.md`. This is a genuine
-passive-detection robustness finding.
+The R1 gate (all on the bytes after the outer header and its extension
+headers): GTP version 1 with the protocol-type bit set; message type one of
+0x01, 0x02, 0x1A, 0x1B, 0xFE, 0xFF; `8 + length` at most the bytes present and
+at least that minus 4; G-PDU/end-marker length ≥ 20; and the recovered header
+must forward IPv4 or IPv6. Known blind spots (documented, tested): an unseen
+TEID becomes owned by its first sender, a forged gNB address, PFCP on a
+non-standard port, a core NF missing from the configured set, and SCTP/R4 on
+IPv6 inner packets.
 
-R2 keys TEID ownership on (receiving address, TEID), the receiving address being
-the destination of the outer IPv4 or IPv6 header that carries the tunnel, because TS 29.281 makes a TEID unique only within the
-endpoint that receives it. The first source seen owns the pair. A packet from
-any other source raises R2 and does not take ownership, so a rogue cannot take a
-TEID over. With the gNB allowlist (`--gnb-ips`) configured, an allowlisted gNB
-always takes ownership and nothing is raised: that covers a handover, and the
-real gNB reclaiming a tunnel a rogue was seen on first (for example after a
-detector restart). Without the allowlist every change is flagged, so a handed-over session
-keeps alerting for as long as it sends from the new gNB.
-
-## Repo layout
+## Repository layout
 
 ```
 gtp-abuse-detector/
-├── docker-compose.yml     # wires the whole lab on 10.10.10.0/24
-├── .env                   # PLMN, subscriber keys, addresses
+├── SETUP.md               # step-by-step guide for everything
 ├── Makefile               # make help
-├── core/                  # Open5GS image + entrypoint + config overrides
+├── docker-compose.yml     # the lab on 10.10.10.0/24
+├── .env                   # PLMN, subscriber keys, addresses, UE_COUNT
+├── core/                  # Open5GS image + entrypoint
 ├── ran/                   # UERANSIM image + gnb.yaml + ue.yaml
 ├── detector/              # rules.py, baselines.py, metrics.py, gtpu_detector.py, tests/
-├── attacker/              # generate_attacks.py, benign_traffic.py, evasions.py
-├── eval/                  # benchmark.py, run_eval.py, report.py -> RESULTS.md
-├── viz/                   # live browser dashboard (server.py + index.html)
-├── scripts/               # lab_up.sh / lab_down.sh -- one-command bring-up
-├── paper/                 # research paper, results, findings, repro guide
+├── attacker/              # generate_attacks.py, benign_traffic.py, evasions.py, dissector_probe.py
+├── eval/                  # benchmark, heldout, external_eval, comparator_pcaps, latency
+│   └── results/revision2/ # result files behind every number in the manuscript
+├── scripts/               # lab_up.sh, lab_down.sh, revision2/ (fetch data, external, comparators, live)
+├── viz/                   # live browser dashboard
+├── paper/                 # manuscript (docx/pdf), response to reviewers, figures; archive/ = earlier drafts
 └── docs/                  # ARCHITECTURE.md, LAB_GUIDE.md
 ```
 
-## Live dashboard
+## Citing the data used
 
-```bash
-python3 viz/server.py            # while the lab is up
-```
-
-Open **http://localhost:8090** for a live view: network topology, live
-packet/GTP-U counters, a per-rule findings tally, and a scrolling live
-findings feed, watch the N3 link flash when `make attack` fires. See
-`viz/README.md` for details.
-
-## Notes on reproducibility
-
-Image tags drift. `.env` pins `UERANSIM_REF`; the core installs Open5GS from the
-maintained PPA. If a NF config schema changes upstream, the entrypoint rebinds
-only NGAP + GTP-U addresses and leaves the rest as packaged, pin full YAMLs in
-`core/configs/` for an exact thesis appendix. The **offline eval path does not
-depend on the live core at all**, so your metrics stay reproducible regardless.
+The independent evaluation uses the 5G Core GTP-U Attack Dataset (5G-CGAD),
+S. P. Wengappuli Arachchige, Y. Siriwardhana and T. Hewa, University of Oulu,
+2025, CC BY 4.0, doi:10.23729/fd-b9459ea4-88a7-35c2-992e-f178a294c12d. It is
+not redistributed here; `make fetch-data` downloads it.
 
 ## Licence
 
-MIT. See `LICENSE`.
+MIT. See [`LICENSE`](LICENSE).

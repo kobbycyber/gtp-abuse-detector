@@ -53,20 +53,32 @@ makes Scapy guess `PPP`. So the re-parse keys on the raw *bytes*, not on the
 `Raw` class:
 
 ```
-_looks_like_gtp(buf):   version==1 AND PT set AND msg_type known
-                        AND length field consistent (8 + len == datagram size)
-_reparse_inner():       if inner is not IP/IPv6/GTP: re-check bytes(inner);
-                        if looks_like_gtp -> GTP_U_Header(bytes(inner))
+_gtpu_payload(raw):     skip the outer 8-byte header, the 4 optional bytes when
+                        E/S/PN is set, and every extension header (each states
+                        its own length in 4-byte units and the type of the next)
+_inner_of_gtpu(pkt):    use the dissector's decoding if it is IP/IPv6/GTP;
+                        otherwise take the payload bytes from _gtpu_payload and,
+                        if _looks_like_gtp, decode them as GTP_U_Header
+_looks_like_gtp(buf):   version==1 AND PT set AND msg_type in
+                        {0x01,0x02,0x1A,0x1B,0xFE,0xFF} AND
+                        len-4 <= 8+length <= len (up to 4 bytes padding)
+                        AND G-PDU/end-marker length >= 20
 _carries_inner_ip(g):   nested header must forward a routable inner IPv4/IPv6
 ```
 
-A `Raw`-only version of `_reparse_inner()` silently missed the realistic
-G-PDU-outer case (Scapy returned `PPP`) until a probe capture with a valid outer
-message type exposed it; the byte-level re-parse catches both. `tshark` and Zeek
-exhibit the same first-byte blind spot on that probe (`paper/REPRODUCE.md`
-Part D).
+Walking the extension-header chain matters on real traffic. A gNB sets the E
+flag on every N3 G-PDU and adds a PDU Session Container; Scapy then decodes the
+container and stops, so code that takes "the payload after the GTP layer" never
+reaches the nested header. On held-out seeds with realistic outer headers an
+engine without the walk misses every bare-nested packet (recall 0.8 overall);
+with it, recall is 1.0 (`eval/results/revision2/heldout_ext*.json`).
+Keying on bytes rather than on a decoded class also covers the realistic
+G-PDU-outer case, where Scapy guesses the nested header as `PPP`, and the
+bare-outer case, where it leaves `Raw`. `tshark` and Zeek show the same
+first-byte blind spot (SETUP.md Part 10; source lines in
+`eval/results/revision2/dissector_sources.md`).
 
-The last two conditions are hardening added after a realistic benign corpus
+The length and routable-inner conditions are hardening added after a realistic benign corpus
 (`attacker/benign_traffic.py`) exposed a false positive: 5G *Unstructured* PDU
 sessions carry arbitrary non-IP bytes, some of which collide with the GTP byte
 pattern. Requiring the nested header's length field to be self-consistent and

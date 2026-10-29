@@ -1,0 +1,11 @@
+#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	tunnel
+#open	2026-10-29-01-11-39
+#fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	tunnel_type	action
+#types	time	string	addr	port	addr	port	enum	enum
+1793236189.922498	Ch9KjCWpe0TxDysle	10.10.10.20	2152	10.10.10.10	2152	Tunnel::GTPv1	Tunnel::DISCOVER
+1793236189.940452	Ch9KjCWpe0TxDysle	10.10.10.20	2152	10.10.10.10	2152	Tunnel::GTPv1	Tunnel::CLOSE
+#close	2026-10-29-01-11-39

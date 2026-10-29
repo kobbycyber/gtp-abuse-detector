@@ -57,7 +57,7 @@ All result files and the scripts that produce them are in the repository under `
 
 **2.4 The flow-indistinguishability claim.** Softened. Section 3.3 now presents it as an argument, says that no flow-based or learned detector was run, and leaves the question open. Gap 3 now acknowledges that our development corpus has the same weakness, which is why the held-out and independent evaluations were added.
 
-**2.5 The Section 8 lesson is overgeneralised.** Section 8 is removed, together with its general lesson. The defect write-up remains in the repository (`paper/FINDINGS.md`) and is not cited as a result.
+**2.5 The Section 8 lesson is overgeneralised.** Section 8 is removed, together with its general lesson. The defect write-up remains in the repository (`paper/archive/FINDINGS.md`) and is not cited as a result.
 
 **2.6 First-byte dispatch as a hypothesis.** We read the source of each tool (Section 7.3; the source lines are recorded in `eval/results/revision2/dissector_sources.md`). Section 6.2 now says that the dispatch was first inferred from the layer stacks and then confirmed in the source. The claim is limited to the three open implementations read.
 
@@ -77,7 +77,7 @@ All result files and the scripts that produce them are in the repository under `
 
 **3.5 IPv6 in the scope statement.** Done. The abstract says that IPv6 inner coverage is partial, and Section 4 has a scope paragraph naming the SCTP check and R4 as IPv4-only.
 
-**3.6 Repository does not match the paper.** Fixed. The repository now has an MIT `LICENSE` file. The README shows 25 tests, matching the paper, and documents `make live-score`. Every result file and run script of the revision is under `eval/results/revision2/` and `scripts/revision2/`. The root-cause file for the development defects is `paper/FINDINGS.md`.
+**3.6 Repository does not match the paper.** Fixed. The repository now has an MIT `LICENSE` file. The README shows 25 tests, matching the paper, and `make live-score` is listed by `make help` and documented in `SETUP.md`. Every result file and run script of the revision is under `eval/results/revision2/` and `scripts/revision2/`. The root-cause file for the development defects is `paper/archive/FINDINGS.md`, and `SETUP.md` is a step-by-step guide to reproducing every result.
 
 **3.7 Single-subscriber synthetic benign mix; TEID ageing.** Both are stated in Section 8. The benign evidence now also includes 6.2 million packets from 30 subscribers on another testbed, and the live runs use three subscribers.
 

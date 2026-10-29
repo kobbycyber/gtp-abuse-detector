@@ -45,6 +45,37 @@ live-score: ## Write the exact `make attack` corpus with labels and score it per
 		--metrics-out captures/live_corpus.metrics.json
 
 # ---------------------------------------------------------------------------
+# Held-out, independent-data and comparator evaluation (revised manuscript)
+# ---------------------------------------------------------------------------
+DATA ?= $(HOME)/5g-cgad
+
+.PHONY: heldout
+heldout: ## Held-out seeds 101-110, plain and realistic outer header -> eval/results/
+	python3 eval/heldout.py --out eval/results/heldout_plain.json
+	python3 eval/heldout.py --realistic-outer --out eval/results/heldout_ext.json
+
+.PHONY: latency
+latency: ## Per-packet cost, five passes -> eval/results/latency.json
+	python3 eval/latency.py --reps 5 --out eval/results/latency.json
+
+.PHONY: fetch-data
+fetch-data: ## Download the Oulu 5G-CGAD captures into $(DATA) (~6.9 GB)
+	scripts/revision2/fetch_5gcgad.sh $(DATA)
+
+.PHONY: external
+external: ## Score engine + baseline on 5G-CGAD in $(DATA) -> eval/results/external/
+	scripts/revision2/run_external.sh $(DATA) attacks
+	scripts/revision2/run_external.sh $(DATA) benign
+
+.PHONY: comparators
+comparators: ## Zeek, Suricata and tshark on per-class captures (Docker) -> comparators/
+	scripts/revision2/run_comparators.sh comparators
+
+.PHONY: figures
+figures: ## Regenerate manuscript figures -> paper/figures/manuscript/
+	cd paper/figures && python3 make_manuscript_figures.py
+
+# ---------------------------------------------------------------------------
 # Live lab path (Docker) — runs on a host with a real kernel (your Proxmox VM).
 # ---------------------------------------------------------------------------
 .PHONY: build
@@ -59,6 +90,10 @@ lab-up: ## Start core + RAN + live detector
 .PHONY: logs
 logs: ## Follow detector output
 	$(COMPOSE) logs -f detector
+
+.PHONY: live-run
+live-run: ## Labelled live run with real UE traffic: make live-run TAG=L1 SEED=2026 TEID=0x2 COUNT=400 BENIGN=100
+	scripts/revision2/run_live.sh $(TAG) $(SEED) $(TEID) $(COUNT) $(BENIGN)
 
 .PHONY: attack
 attack: ## Fire the live attack corpus at the lab UPF
@@ -76,4 +111,6 @@ lab-down: ## Stop and remove the lab
 .PHONY: clean
 clean: ## Remove volumes and generated artifacts
 	$(COMPOSE) down -v || true
-	rm -f captures/*.pcap captures/*.labels.json eval/metrics.json eval/RESULTS.md
+	find captures -maxdepth 1 -type f ! -name .gitkeep ! -name dissector_probe.pcap -delete
+	rm -f eval/metrics.json eval/RESULTS.md
+	rm -rf comparators eval/results/external eval/results/live eval/results/*.json

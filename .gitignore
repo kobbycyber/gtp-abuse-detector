@@ -12,3 +12,8 @@ eval/RESULTS.md
 !captures/dissector_probe.pcap
 captures/*.metrics.json
 .~lock.*#
+/comparators/
+eval/results/*.json
+eval/results/external/
+eval/results/live/
+!eval/results/revision2/**/*.log

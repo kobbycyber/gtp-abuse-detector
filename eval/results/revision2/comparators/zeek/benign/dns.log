@@ -1,0 +1,15 @@
+#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	dns
+#open	2026-10-29-01-11-32
+#fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	proto	trans_id	rtt	query	qclass	qclass_name	qtype	qtype_name	rcode	rcode_name	AA	TC	RD	RA	Z	answers	TTLs	rejected	opcode	opcode_name
+#types	time	string	addr	port	addr	port	enum	count	interval	string	count	string	count	string	count	string	bool	bool	bool	bool	count	vector[string]	vector[interval]	bool	count	string
+1793236190.692358	CBgzui38BS0mIzXUs7	10.45.0.25	35897	1.1.1.1	53	udp	4660	-	example.com	1	C_INTERNET	1	A	-	-	F	F	T	F	0	-	-	F	0	query
+1793236190.694030	C4BCLu31gF9niO394k	10.45.0.23	41421	1.1.1.1	53	udp	4660	-	example.com	1	C_INTERNET	1	A	-	-	F	F	T	F	0	-	-	F	0	query
+1793236190.697863	Cn7oPDbOjW3Hc3U86	10.45.0.16	34371	8.8.8.8	53	udp	4660	-	example.com	1	C_INTERNET	1	A	-	-	F	F	T	F	0	-	-	F	0	query
+1793236190.698858	CXtgfb4o6ZBdwFfIik	10.45.0.20	55295	1.1.1.1	53	udp	4660	-	example.com	1	C_INTERNET	1	A	-	-	F	F	T	F	0	-	-	F	0	query
+1793236190.699920	ChzeEo1FbrIwkEbu1e	10.45.0.28	28325	1.1.1.1	53	udp	4660	-	example.com	1	C_INTERNET	1	A	-	-	F	F	T	F	0	-	-	F	0	query
+1793236190.702760	CYzZto90UMZjdYdkj	10.45.0.37	58423	8.8.8.8	53	udp	4660	-	example.com	1	C_INTERNET	1	A	-	-	F	F	T	F	0	-	-	F	0	query
+#close	2026-10-29-01-11-32

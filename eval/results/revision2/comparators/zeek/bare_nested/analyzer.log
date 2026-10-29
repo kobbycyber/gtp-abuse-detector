@@ -1,0 +1,10 @@
+#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	analyzer
+#open	2026-10-29-01-11-30
+#fields	ts	analyzer_kind	analyzer_name	uid	fuid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	proto	failure_reason	failure_data
+#types	time	string	string	string	string	addr	port	addr	port	enum	string	string
+1793236189.438896	packet	GTPV1	CS7Paq1cVBqK7yQ7P8	-	10.10.10.20	2152	10.10.10.10	2152	udp	non-IP packet in GTPv1	-
+#close	2026-10-29-01-11-30

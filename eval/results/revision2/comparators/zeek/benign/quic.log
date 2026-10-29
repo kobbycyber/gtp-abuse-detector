@@ -1,0 +1,10 @@
+#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	quic
+#open	2026-10-29-01-11-32
+#fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	version	client_initial_dcid	client_scid	server_scid	server_name	client_protocol	history
+#types	time	string	addr	port	addr	port	string	string	string	string	string	string	string
+1793236190.698073	CzeNQ039VnvNXPOPB2	10.45.0.12	1274	142.250.72.14	443	1	05cd908292cc9c167ceb5b0da0d57d41d7c702f4adc7c3b528d19a1dff59167fdc575c11e2d1aa7ffe2d39030dffd00b0f5a415506fc08	d94a859f5fff491ac24e8d886f20efe08bd9c58a6b546a39ddf2e1e5512b922ebe6e9499e2c9e044b3582012	-	-	-	R
+#close	2026-10-29-01-11-32

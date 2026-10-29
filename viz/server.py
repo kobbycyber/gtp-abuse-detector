@@ -61,7 +61,7 @@ _in_docker_group_cache: bool | None = None
 def _in_docker_group() -> bool:
     """Cached: can we talk to the Docker socket directly? If not, every
     call is wrapped through `sg docker` instead -- the same situation
-    scripts/lab_up.sh handles (see paper/REPRODUCE.md B.1)."""
+    scripts/lab_up.sh handles (see SETUP.md Part 2b)."""
     global _in_docker_group_cache
     if _in_docker_group_cache is None:
         try:

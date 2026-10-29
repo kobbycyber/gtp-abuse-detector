@@ -3,7 +3,7 @@
 # lab_up.sh -- bring the gtpu-abuse-lab live Docker stack up cleanly.
 #
 # Bakes in fixes for every ordering/race issue found while first bringing
-# this lab up live (full root-cause writeups in paper/FINDINGS.md):
+# this lab up live (root-cause notes in paper/archive/FINDINGS.md):
 #   - ran's gNB attempts NGAP exactly once at container start and does not
 #     retry; if core's AMF isn't listening yet, ran needs one restart.
 #   - detector/attacker use network_mode: service:core, which resolves at
@@ -23,7 +23,7 @@ if [[ "${1:-}" == "--no-build" ]]; then
 fi
 
 # Transparently work whether or not the current shell session already has
-# docker-group membership (see paper/REPRODUCE.md B.1) -- avoids forcing a
+# docker-group membership (see SETUP.md Part 2b) -- avoids forcing a
 # fresh login just to run this script.
 dc() {
     if docker info >/dev/null 2>&1; then

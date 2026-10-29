@@ -1,0 +1,33 @@
+#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	weird
+#open	2026-10-29-01-11-32
+#fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	name	addl	notice	peer	source
+#types	time	string	addr	port	addr	port	string	string	bool	string	string
+1793236190.690699	ChVBxl4b1LohXq93U	10.45.0.34	57384	151.101.1.140	443	possible_split_routing	-	F	zeek	-
+1793236190.690699	ChVBxl4b1LohXq93U	10.45.0.34	57384	151.101.1.140	443	data_before_established	-	F	zeek	TCP
+1793236190.691485	C2D1FP1myQIcwxeWI9	10.45.0.31	33105	151.101.1.140	443	possible_split_routing	-	F	zeek	-
+1793236190.691485	C2D1FP1myQIcwxeWI9	10.45.0.31	33105	151.101.1.140	443	data_before_established	-	F	zeek	TCP
+1793236190.692796	CdZugv3Ouw9aDcxwd	10.45.0.17	22407	1.1.1.1	443	possible_split_routing	-	F	zeek	-
+1793236190.692796	CdZugv3Ouw9aDcxwd	10.45.0.17	22407	1.1.1.1	443	data_before_established	-	F	zeek	TCP
+1793236190.693331	CRrhCm2J6owkxWUKs8	10.45.0.22	26714	9.9.9.9	443	possible_split_routing	-	F	zeek	-
+1793236190.693331	CRrhCm2J6owkxWUKs8	10.45.0.22	26714	9.9.9.9	443	data_before_established	-	F	zeek	TCP
+1793236190.693763	CgNuAJ3UW2Qc7ZFb8h	10.45.0.18	18482	1.1.1.1	443	possible_split_routing	-	F	zeek	-
+1793236190.693763	CgNuAJ3UW2Qc7ZFb8h	10.45.0.18	18482	1.1.1.1	443	data_before_established	-	F	zeek	TCP
+1793236190.694458	CMaomo11CCw8LgnAVi	2001:db8:45::b	55077	2001:4860:4860::8888	443	QUIC_spurious_short_header_packet_threshold_crossed	1	F	zeek	-
+1793236190.695936	C6MZMP2GrAwN6v2cYi	10.45.0.27	6504	1.1.1.1	443	possible_split_routing	-	F	zeek	-
+1793236190.695936	C6MZMP2GrAwN6v2cYi	10.45.0.27	6504	1.1.1.1	443	data_before_established	-	F	zeek	TCP
+1793236190.696358	CrjaGn1RRqFfdzuD	10.45.0.36	28750	9.9.9.9	80	possible_split_routing	-	F	zeek	-
+1793236190.696358	CrjaGn1RRqFfdzuD	10.45.0.36	28750	9.9.9.9	80	data_before_established	-	F	zeek	TCP
+1793236190.696358	CrjaGn1RRqFfdzuD	10.45.0.36	28750	9.9.9.9	80	unknown_HTTP_method	ET	F	zeek	-
+1793236190.697555	CATM4J3mnoGjlVC4p4	10.45.0.27	40438	151.101.1.140	443	possible_split_routing	-	F	zeek	-
+1793236190.697555	CATM4J3mnoGjlVC4p4	10.45.0.27	40438	151.101.1.140	443	data_before_established	-	F	zeek	TCP
+1793236190.699715	CdDJzg2fYkl0lk8ie6	10.45.0.22	49529	1.1.1.1	443	possible_split_routing	-	F	zeek	-
+1793236190.699715	CdDJzg2fYkl0lk8ie6	10.45.0.22	49529	1.1.1.1	443	data_before_established	-	F	zeek	TCP
+1793236190.701020	Ci49T13KaVGyzyCgxd	10.45.0.5	24104	9.9.9.9	443	possible_split_routing	-	F	zeek	-
+1793236190.701020	Ci49T13KaVGyzyCgxd	10.45.0.5	24104	9.9.9.9	443	data_before_established	-	F	zeek	TCP
+1793236190.703216	CXYP0mXC5FIOlAX23	10.45.0.4	22348	9.9.9.9	443	possible_split_routing	-	F	zeek	-
+1793236190.703216	CXYP0mXC5FIOlAX23	10.45.0.4	22348	9.9.9.9	443	data_before_established	-	F	zeek	TCP
+#close	2026-10-29-01-11-32
