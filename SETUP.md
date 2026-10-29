@@ -214,10 +214,10 @@ git worktree remove --force /tmp/oldengine
 make latency
 ```
 
-**You should see** a JSON summary with `mean_us` around 600–800 and
-`pkts_per_s` around 1,300–1,600 on a laptop-class core. Absolute values depend on
-the machine; the paper's figure (716 µs, ~1,400 pkt/s) is in
-`eval/results/revision2/latency_local.json`.
+**You should see** a JSON summary with `mean_us` (a few hundred µs) and
+`pkts_per_s`. Absolute values depend on the machine: the paper's development
+host measured 716 µs and ~1,400 pkt/s (`eval/results/revision2/latency_local.json`),
+and a 2-vCPU cloud host measured about 320 µs and ~3,100 pkt/s.
 
 ---
 
@@ -505,6 +505,10 @@ On a cloud instance, stop the instance when you are done to avoid charges.
 ```bash
 make figures      # regenerates paper/figures/manuscript/image1-6.png
 ```
+
+The content is the same on any machine, but the PNG bytes depend on the
+matplotlib version and fonts, so `git status` may show the images as modified.
+`git checkout paper/figures/manuscript` restores the committed ones.
 
 | Paper item | Produced by | Result file |
 |---|---|---|
