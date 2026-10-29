@@ -631,7 +631,7 @@ more:
 
 ```bash
 # --- offline (no Docker/root) ---
-make test            # 24 unit tests
+make test            # 25 unit tests
 make eval            # full benchmark -> eval/RESULTS.md
 make evasions        # list the evasion suite and verdicts
 make live-score      # score the exact `make attack` corpus packet by packet

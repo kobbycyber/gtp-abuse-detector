@@ -1,0 +1,30 @@
+{
+  "sources": [
+    "/home/ubuntu/gtprev/oulu/benign_traffic.tar.xz"
+  ],
+  "label": "benign",
+  "config": {
+    "core_ips": "10.42.0.64,10.42.0.208",
+    "gnb_ips": "(none: strict R2)"
+  },
+  "frames": 11424512,
+  "gtpu_packets": 6218456,
+  "flagged": 0,
+  "flagged_fraction": 0.0,
+  "flagged_wilson95": [
+    0.0,
+    6.177508545901898e-07
+  ],
+  "rule_hits": {},
+  "naive_flagged": 0,
+  "naive_flagged_fraction": 0.0,
+  "naive_flagged_wilson95": [
+    0.0,
+    6.177508545901898e-07
+  ],
+  "naive_rule_hits": {},
+  "errors": 0,
+  "files": 29,
+  "seconds": 6819.8,
+  "examples": []
+}

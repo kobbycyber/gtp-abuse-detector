@@ -1,0 +1,195 @@
+{
+  "sources": [
+    "/home/ubuntu/gtprev/oulu/gtp_malformed/**/*.pcap"
+  ],
+  "label": "attack",
+  "config": {
+    "core_ips": "10.42.0.64,10.42.0.208",
+    "gnb_ips": "(none: strict R2)"
+  },
+  "frames": 353928,
+  "gtpu_packets": 353136,
+  "flagged": 176903,
+  "flagged_fraction": 0.500948643015722,
+  "flagged_wilson95": [
+    0.49929954421478423,
+    0.5025977211779625
+  ],
+  "rule_hits": {
+    "R2_TEID_SPOOF": 176903
+  },
+  "naive_flagged": 176903,
+  "naive_flagged_fraction": 0.500948643015722,
+  "naive_flagged_wilson95": [
+    0.49929954421478423,
+    0.5025977211779625
+  ],
+  "naive_rule_hits": {
+    "R2_TEID_SPOOF": 176903
+  },
+  "errors": 0,
+  "files": 5,
+  "seconds": 163.4,
+  "examples": [
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 101,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.135.93.105."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 103,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.135.93.105."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 105,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.135.93.105."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 107,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.55.167.229."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 109,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.55.167.229."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 111,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.248.89.170."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 113,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.248.89.170."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 115,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.248.89.170."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 117,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.248.89.170."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 119,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.248.89.170."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 121,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.248.89.170."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 123,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.248.89.170."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 125,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.248.89.170."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 127,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.248.89.170."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 129,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.248.89.170."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 131,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.60.38.34."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 133,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.228.104.145."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 135,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.228.104.145."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 137,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.228.104.145."
+    },
+    {
+      "file": "capture_20250408_103225.pcap",
+      "frame": 139,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x3039 first bound to 10.171.42.170, now sourced from 10.228.104.145."
+    }
+  ]
+}

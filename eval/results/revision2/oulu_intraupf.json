@@ -1,0 +1,44 @@
+{
+  "sources": [
+    "/home/ubuntu/gtprev/oulu/intra_upf_dos_attack/**/*.pcap"
+  ],
+  "label": "attack",
+  "config": {
+    "core_ips": "10.42.0.64,10.42.0.208",
+    "gnb_ips": "(none: strict R2)"
+  },
+  "frames": 435028,
+  "gtpu_packets": 426949,
+  "flagged": 1,
+  "flagged_fraction": 2.342200122262846e-06,
+  "flagged_wilson95": [
+    4.134559492349641e-07,
+    1.3268286655723378e-05
+  ],
+  "rule_hits": {
+    "R3_CP_SMUGGLING": 1
+  },
+  "naive_flagged": 3,
+  "naive_flagged_fraction": 7.026600366788539e-06,
+  "naive_flagged_wilson95": [
+    2.3896810182496974e-06,
+    2.0660777781059653e-05
+  ],
+  "naive_rule_hits": {
+    "R1_GTP_IN_GTP": 3,
+    "R3_CP_SMUGGLING": 1
+  },
+  "errors": 0,
+  "files": 30,
+  "seconds": 186.9,
+  "examples": [
+    {
+      "file": "capture_20250824_162028.pcap",
+      "frame": 358122,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-U) encapsulated in GTP-U tunnel."
+    }
+  ]
+}

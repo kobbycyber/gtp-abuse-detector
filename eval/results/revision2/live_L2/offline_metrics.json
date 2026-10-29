@@ -1,0 +1,28 @@
+{
+  "packets_seen": 800,
+  "gtpu_packets": 800,
+  "rule_hits": {
+    "R2_TEID_SPOOF": 91,
+    "R1_GTP_IN_GTP": 131,
+    "R3_CP_SMUGGLING": 255,
+    "R4_INNER_TO_CORE": 376
+  },
+  "latency": {
+    "count": 800,
+    "mean_us": 433.52,
+    "p50_us": 91.97,
+    "p95_us": 2057.8,
+    "p99_us": 3975.83,
+    "max_us": 26245.2
+  },
+  "classification": {
+    "tp": 598,
+    "fp": 0,
+    "fn": 2,
+    "tn": 200,
+    "precision": 1.0,
+    "recall": 0.9967,
+    "f1": 0.9983,
+    "false_positive_rate": 0.0
+  }
+}

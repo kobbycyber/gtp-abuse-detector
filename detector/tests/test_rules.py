@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scapy.all import IP, IPv6, UDP, ICMP, TCP, Raw
-from scapy.contrib.gtp import GTP_U_Header
+from scapy.contrib.gtp import GTP_U_Header, GTPPDUSessionContainer
 from scapy.contrib.pfcp import PFCP
 
 from rules import DetectorState, evaluate
@@ -91,6 +91,26 @@ def test_gtp_in_gtp_gpdu_outer():
     pkt = IP(bytes(outer / GTP_U_Header(gtp_type=0xFF, teid=0x1) /
                    IP(src="10.45.0.2", dst="10.45.0.1") / ICMP()))
     assert "R1_GTP_IN_GTP" in rules_hit(evaluate(pkt, st))
+
+
+def test_outer_extension_header_does_not_hide_nesting():
+    """Real N3 G-PDUs carry a PDU Session Container (E flag set). The payload
+    starts after the extension-header chain, so a nested tunnel there must
+    still raise R1, and an ordinary packet there must not. A chain that runs
+    past the end of the packet must not crash the engine."""
+    st = fresh_state()
+    outer = IP(src=GNB, dst=UPF) / UDP(sport=GTPU, dport=GTPU) / \
+        GTP_U_Header(gtp_type=0xFF, teid=0x1, E=1, next_ex=0x85) / \
+        GTPPDUSessionContainer(type=1, QFI=1)
+    nested = IP(bytes(outer / GTP_U_Header(gtp_type=0xFF, teid=0x2) /
+                      IP(src="10.45.0.2", dst="8.8.8.8") / ICMP()))
+    assert "R1_GTP_IN_GTP" in rules_hit(evaluate(nested, st))
+    benign = IP(bytes(outer / IP(src="10.45.0.2", dst="8.8.8.8") / ICMP()))
+    assert evaluate(benign, st) == []
+    broken = IP(bytes(IP(src=GNB, dst=UPF) / UDP(sport=GTPU, dport=GTPU) /
+                      GTP_U_Header(gtp_type=0xFF, teid=0x1, E=1, next_ex=0x85) /
+                      Raw(b"\x09\x00")))
+    evaluate(broken, st)  # must not raise
 
 
 def test_benign_gpdu_inner_ip_clean():

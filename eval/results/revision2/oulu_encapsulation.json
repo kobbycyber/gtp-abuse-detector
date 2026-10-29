@@ -1,0 +1,217 @@
+{
+  "sources": [
+    "/home/ubuntu/gtprev/oulu/gtp_encapsulation/**/*.pcap"
+  ],
+  "label": "attack",
+  "config": {
+    "core_ips": "10.42.0.64,10.42.0.208",
+    "gnb_ips": "(none: strict R2)"
+  },
+  "frames": 291474,
+  "gtpu_packets": 290225,
+  "flagged": 290225,
+  "flagged_fraction": 1.0,
+  "flagged_wilson95": [
+    0.999986764034677,
+    1.0
+  ],
+  "rule_hits": {
+    "R1_GTP_IN_GTP": 290225,
+    "R3_CP_SMUGGLING": 290225
+  },
+  "naive_flagged": 290225,
+  "naive_flagged_fraction": 1.0,
+  "naive_flagged_wilson95": [
+    0.999986764034677,
+    1.0
+  ],
+  "naive_rule_hits": {
+    "R1_GTP_IN_GTP": 290225,
+    "R3_CP_SMUGGLING": 290225
+  },
+  "errors": 0,
+  "files": 8,
+  "seconds": 317.1,
+  "examples": [
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 13,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 14,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 15,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 16,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 17,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 18,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 19,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 20,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 21,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 22,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 23,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 24,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 25,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 26,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 27,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 28,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 29,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 30,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 31,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    },
+    {
+      "file": "capture_20250414_100545.pcap",
+      "frame": 32,
+      "rules": [
+        "R1_GTP_IN_GTP",
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "GTP header nested inside GTP-U payload (tunnel-in-tunnel)."
+    }
+  ]
+}

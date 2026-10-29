@@ -248,7 +248,7 @@ def fig4():
     steps = [
         (88, 5.2, "Captured frame", False),
         (79.5, 5.6, "GTP-U layer present?", False),
-        (70, 6.4, "Take the outer payload as\nthe dissector returned it", False),
+        (70, 6.4, "Skip the outer header and its\nextension headers; take the payload", False),
         (60.5, 6.4, "Already decoded as IPv4,\nIPv6 or a GTP header?", False),
         (40, 16.5, "PLAUSIBILITY GATE on the raw bytes\nversion 1, PT bit set\n"
                    "message type in {01, 02, 1a, 1b, fe, ff}\n8 + declared length matches the\n"
@@ -286,32 +286,48 @@ def fig4():
 # ---------------------------------------------------------------- Fig. 5
 def fig5():
     plt.rcParams.update({"axes.spines.top": False, "axes.spines.right": False})
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(6.7, 2.35), dpi=DPI,
-                                 gridspec_kw={"width_ratios": [2.4, 1]})
-    cl = ["gtp_in_gtp", "teid_spoof", "pfcp_smuggle", "ngap_smuggle", "inner_to_core"]
+    fig, (a1, a2, a3) = plt.subplots(1, 3, figsize=(6.7, 2.6), dpi=DPI,
+                                     gridspec_kw={"width_ratios": [2.4, 0.8, 1.3]})
+    cl = ["gtp_in\n_gtp", "teid\n_spoof", "pfcp\n_smuggle", "ngap\n_smuggle", "inner_to\n_core"]
     naive, robust = [0, 1, 1, 1, 1], [1] * 5
     x, w = np.arange(5), 0.38
-    a1.bar(x - w / 2, naive, w, color="#e08a1e", edgecolor=NAVY, lw=0.6, label="naive (default dissection)")
-    a1.bar(x + w / 2, robust, w, color=UP_EC, edgecolor=NAVY, lw=0.6, label="robust (targeted re-parse)")
+    a1.bar(x - w / 2, naive, w, color="#e08a1e", edgecolor=NAVY, lw=0.6, label="naive baseline (default dissection)")
+    a1.bar(x + w / 2, robust, w, color=UP_EC, edgecolor=NAVY, lw=0.6, label="engine (with re-parse)")
     for i in range(5):
         a1.text(i - w / 2, naive[i] + 0.03, f"{naive[i]:.1f}", ha="center", fontsize=6.3)
         a1.text(i + w / 2, 1.03, "1.0", ha="center", fontsize=6.3)
     a1.set_xticks(x)
-    a1.set_xticklabels(cl, fontsize=6.4)
+    a1.set_xticklabels(cl, fontsize=5.8)
     a1.set_ylim(0, 1.32)
     a1.set_yticks([0, 0.25, 0.5, 0.75, 1.0])
     a1.set_ylabel("Recall")
-    a1.set_title("(a) Per-class recall, identical corpus and rule logic", fontsize=7.5)
-    a1.legend(loc="upper center", ncol=2, frameon=False, fontsize=6.5)
+    a1.set_title("(a) Per-class recall, same corpus and rules", fontsize=7.5)
+    a1.legend(loc="upper center", ncol=2, frameon=False, fontsize=5.6, handlelength=1.2,
+              columnspacing=0.8, bbox_to_anchor=(0.5, 1.0))
     a2.bar([0, 1], [0.8889, 1.0], 0.55, color=["#e08a1e", UP_EC], edgecolor=NAVY, lw=0.6)
     a2.text(0, 0.92, "0.889", ha="center", fontsize=6.5)
     a2.text(1, 1.03, "1.0", ha="center", fontsize=6.5)
     a2.set_xticks([0, 1])
-    a2.set_xticklabels(["naive", "robust"])
+    a2.set_xticklabels(["naive", "engine"])
     a2.set_ylim(0, 1.32)
     a2.set_yticks([0, 0.25, 0.5, 0.75, 1.0])
     a2.set_ylabel("Overall F1")
     a2.set_title("(b) Overall F1", fontsize=7.5)
+    # (c) naive F1 as a function of the bare-nested share s of malicious traffic:
+    # precision stays 1 and recall is 1 - s, so F1 = 2(1 - s) / (2 - s).
+    s_ = np.linspace(0, 1, 101)
+    a3.plot(s_, 2 * (1 - s_) / (2 - s_), color="#e08a1e", lw=1.4, label="naive baseline")
+    a3.plot([0, 1], [1, 1], color=UP_EC, lw=1.4, label="engine")
+    a3.plot([0.2], [0.8889], "o", color=NAVY, ms=3)
+    a3.annotate("this corpus\ns = 0.2", xy=(0.2, 0.8889), xytext=(0.3, 0.45), fontsize=5.8,
+                arrowprops=dict(arrowstyle="-", color=GREY, lw=0.6))
+    a3.set_xlim(0, 1)
+    a3.set_ylim(0, 1.32)
+    a3.set_yticks([0, 0.25, 0.5, 0.75, 1.0])
+    a3.set_xlabel("bare-nested share s", fontsize=6.6)
+    a3.set_ylabel("Overall F1")
+    a3.set_title("(c) F1 against nested share", fontsize=7.5)
+    a3.legend(loc="lower left", frameon=False, fontsize=6)
     fig.tight_layout(pad=0.4)
     save(fig, "image5.png")
 
@@ -320,14 +336,15 @@ def fig5():
 def fig6():
     plt.rcParams.update({"axes.spines.top": False, "axes.spines.right": False})
     fig, a = plt.subplots(figsize=(3.2, 1.95), dpi=DPI)
-    v = [686, 627, 1187, 1616, 2332]
-    lab = ["mean", "P50", "P95", "P99", "max"]
-    col = [UP_EC, "#4f9bd6", "#e08a1e", "#d9541e", ATTACK]
+    # eval/latency.py, 5 repetitions x 1,320 packets, final engine
+    v = [716, 602, 1295, 1944]
+    lab = ["mean", "P50", "P95", "P99"]
+    col = [UP_EC, "#4f9bd6", "#e08a1e", "#d9541e"]
     a.bar(lab, v, color=col, edgecolor=NAVY, lw=0.6, width=0.58)
     for i, y in enumerate(v):
-        a.text(i, max(y, 686) + 40, f"{y:,}", ha="center", fontsize=6.2)
-    a.axhline(686, ls="--", color=GREY, lw=0.8)
-    a.text(-0.35, 2150, "dashed line: mean,\nabout 1,450 pkt/s single core", ha="left", va="center",
+        a.text(i, max(y, 716) + 40, f"{y:,}", ha="center", fontsize=6.2)
+    a.axhline(716, ls="--", color=GREY, lw=0.8)
+    a.text(-0.35, 2150, "dashed line: mean,\nabout 1,400 pkt/s single core", ha="left", va="center",
            fontsize=5.8, color=GREY)
     a.set_ylabel("Per-packet cost (µs)", fontsize=6.8)
     a.tick_params(labelsize=6.4)

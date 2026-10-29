@@ -8,6 +8,13 @@ made to the main project during validation, those changes are already
 applied in the working tree — `FINDINGS.md` documents them with full diffs
 for the record.
 
+**Current manuscript:** [`manuscript_rev2.docx`](manuscript_rev2.docx)
+([PDF](manuscript_rev2.pdf)), the second revision, with held-out seeds, the
+University of Oulu 5G-CGAD captures, Zeek/Suricata comparators and three-UE
+live runs. Its results are in `../eval/results/revision2/`. The documents
+below are earlier drafts and are kept for the record; where their numbers
+differ from the revision, the revision is authoritative.
+
 **Read in this order:**
 
 1. **[`PAPER.md`](PAPER.md)** — the research paper. Motivation, background,

@@ -27,10 +27,40 @@ from scapy.contrib.gtp import GTP_U_Header, GTPHeader
 # GTP-U G-PDU / echo message types we treat as "a real GTP header".
 _GTP_MSG_TYPES = {0x01, 0x02, 0x1a, 0x1b, 0xfe, 0xff}
 
+# Scapy classes that are GTP-U extension headers rather than payload. They do
+# not share a base class, so they are matched by name.
+_GTP_EXT_LAYERS = {
+    "GTPPDUSessionContainer", "GTP_ExtensionHeader",
+    "GTP_UDPPort_ExtensionHeader", "GTP_PDCP_PDU_ExtensionHeader",
+}
 
-def _gtp_header_len(flags: int) -> int:
-    """Mandatory 8 bytes, plus the 4-byte optional field iff any of E/S/PN set."""
-    return 8 + (4 if (flags & 0x07) else 0)
+
+def _gtpu_payload(raw: bytes) -> bytes:
+    """Bytes carried by a GTP-U header, after its extension-header chain.
+
+    The header is 8 bytes, plus a 4-byte optional field when any of the E, S
+    or PN flags is set. With E set, the last of those bytes is the type of the
+    first extension header; each extension header starts with its length in
+    4-byte units and ends with the type of the next one, 0 meaning none
+    (TS 29.281, 5.2). Real N3 traffic carries a PDU Session Container this way
+    on every G-PDU, so the payload cannot be found by skipping a fixed 8 or 12
+    bytes. A chain that runs past the buffer yields no payload.
+    """
+    if len(raw) < 8:
+        return b""
+    flags = raw[0]
+    if not flags & 0x07:
+        return raw[8:]
+    if len(raw) < 12:
+        return b""
+    off, nxt = 12, raw[11]
+    while flags & 0x04 and nxt != 0:
+        if off >= len(raw) or raw[off] == 0 or off + raw[off] * 4 > len(raw):
+            return b""
+        length = raw[off] * 4
+        nxt = raw[off + length - 1]
+        off += length
+    return raw[off:]
 
 
 def _looks_like_gtp(buf: bytes) -> bool:
@@ -86,39 +116,6 @@ def _carries_inner_ip(gtp) -> bool:
         return False
 
 
-def _reparse_inner(inner: Packet):
-    """Re-dissect an inner payload that is really a nested GTP header.
-
-    Scapy does not just hand back a nested GTP header as ``Raw``. Which class it
-    guesses depends on the outer message type and flags: a nested header inside
-    an outer *G-PDU* (the realistic abuse, where the UPF will decapsulate) is
-    guessed from the first payload byte and can come back as ``Raw``, ``PPP`` or
-    another non-IP class, none of which is a real inner packet. So we do not key
-    on ``Raw``: if Scapy already recognised a routable inner (IPv4/IPv6) or a
-    GTP header we keep it, and otherwise we re-check the actual bytes and
-    re-dissect them as GTP-U when they pass the plausibility gate. This is what
-    lets R1 catch the nested tunnel regardless of how the default dissector
-    mis-guessed its class (see tests/test_rules.py::test_gtp_in_gtp_gpdu_outer).
-    """
-    if inner is None:
-        return inner
-    if isinstance(inner, (IP, IPv6, GTP_U_Header, GTPHeader)):
-        return inner
-    # Reserialise the whole guessed layer, not its .load: when Scapy mis-guesses
-    # the nested bytes as e.g. PPP it consumes the first bytes as a header, so
-    # .load would be missing the nested GTP header itself.
-    try:
-        buf = bytes(inner)
-    except Exception:
-        return inner
-    if _looks_like_gtp(buf):
-        try:
-            return GTP_U_Header(buf)
-        except Exception:
-            return inner
-    return inner
-
-# Well-known control-plane UDP ports that must NEVER ride inside GTP-U user data.
 PFCP_PORT = 8805      # N4  (SMF <-> UPF)
 GTPC_PORT = 2123      # GTP-C control plane
 GTPU_PORT = 2152      # GTP-U user plane (the outer tunnel itself)
@@ -170,16 +167,38 @@ class DetectorState:
 def _inner_of_gtpu(pkt: Packet) -> Optional[Packet]:
     """Return the payload carried *inside* the outer GTP-U header, or None.
 
-    Actively re-parses a payload the dissector did not decode as IP or GTP
-    (Raw, PPP or another guessed class) when its bytes are really a nested GTP
-    header, so the rules see tunnel-in-tunnel abuse that default dissection hides.
+    Keeps a payload the dissector already decoded as IPv4, IPv6 or a GTP
+    header. Anything else (Raw, PPP or another guessed class, or an extension
+    header Scapy did not decode) is recovered from the header's own bytes and
+    re-dissected, so the rules see tunnel-in-tunnel abuse that default
+    dissection hides, with or without GTP-U extension headers.
     """
     if not pkt.haslayer(GTP_U_Header):
         return None
-    inner = pkt[GTP_U_Header].payload
-    if not inner:
+    gtp = pkt[GTP_U_Header]
+    inner = gtp.payload
+    # Step over the extension headers Scapy decoded (a PDU Session Container
+    # on real N3 traffic) to the layer they carry.
+    while inner and type(inner).__name__ in _GTP_EXT_LAYERS:
+        inner = inner.payload
+    if inner and isinstance(inner, (IP, IPv6, GTP_U_Header, GTPHeader)):
+        return inner
+    # Otherwise recover the exact payload bytes from the header itself, so an
+    # extension header Scapy did not decode, or a payload it mis-guessed,
+    # cannot hide what follows.
+    buf = _gtpu_payload(bytes(gtp))
+    if not buf:
         return None
-    return _reparse_inner(inner)
+    if buf[0] >> 4 == 4:
+        return IP(buf)
+    if buf[0] >> 4 == 6:
+        return IPv6(buf)
+    if _looks_like_gtp(buf):
+        try:
+            return GTP_U_Header(buf)
+        except Exception:
+            pass
+    return inner if inner else Raw(buf)
 
 
 # --------------------------------------------------------------------------- #

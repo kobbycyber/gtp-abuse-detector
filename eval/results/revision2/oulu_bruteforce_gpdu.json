@@ -1,0 +1,195 @@
+{
+  "sources": [
+    "/home/ubuntu/gtprev/oulu/brute_force_attack/pcap_files_g_pdu_messages/*.pcap"
+  ],
+  "label": "attack",
+  "config": {
+    "core_ips": "10.42.0.64,10.42.0.208",
+    "gnb_ips": "(none: strict R2)"
+  },
+  "frames": 906249,
+  "gtpu_packets": 878333,
+  "flagged": 56002,
+  "flagged_fraction": 0.06375941698649601,
+  "flagged_wilson95": [
+    0.0632503654178409,
+    0.06427228440388455
+  ],
+  "rule_hits": {
+    "R2_TEID_SPOOF": 56002
+  },
+  "naive_flagged": 56002,
+  "naive_flagged_fraction": 0.06375941698649601,
+  "naive_flagged_wilson95": [
+    0.0632503654178409,
+    0.06427228440388455
+  ],
+  "naive_rule_hits": {
+    "R2_TEID_SPOOF": 56002
+  },
+  "errors": 0,
+  "files": 68,
+  "seconds": 911.6,
+  "examples": [
+    {
+      "file": "capture_20250616_124327.pcap",
+      "frame": 1399,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x1fb07 first bound to 10.42.0.220, now sourced from 10.42.0.217."
+    },
+    {
+      "file": "capture_20250616_124327.pcap",
+      "frame": 2900,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x85b7c first bound to 10.42.0.220, now sourced from 10.42.0.219."
+    },
+    {
+      "file": "capture_20250616_124327.pcap",
+      "frame": 4819,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0xec7ac first bound to 10.42.0.217, now sourced from 10.42.0.215."
+    },
+    {
+      "file": "capture_20250616_124327.pcap",
+      "frame": 8513,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x73cfe first bound to 10.42.0.217, now sourced from 10.42.0.219."
+    },
+    {
+      "file": "capture_20250616_124327.pcap",
+      "frame": 9607,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x1b8da first bound to 10.42.0.215, now sourced from 10.42.0.219."
+    },
+    {
+      "file": "capture_20250616_124327.pcap",
+      "frame": 9879,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x38f62 first bound to 10.42.0.215, now sourced from 10.42.0.217."
+    },
+    {
+      "file": "capture_20250616_124327.pcap",
+      "frame": 10373,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0xf1b46 first bound to 10.42.0.220, now sourced from 10.42.0.215."
+    },
+    {
+      "file": "capture_20250616_124327.pcap",
+      "frame": 10764,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x16757 first bound to 10.42.0.219, now sourced from 10.42.0.217."
+    },
+    {
+      "file": "capture_20250616_124327.pcap",
+      "frame": 11831,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0xa3414 first bound to 10.42.0.217, now sourced from 10.42.0.220."
+    },
+    {
+      "file": "capture_20250616_124327.pcap",
+      "frame": 11833,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0xe778 first bound to 10.42.0.220, now sourced from 10.42.0.217."
+    },
+    {
+      "file": "capture_20250616_124327.pcap",
+      "frame": 11886,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x7fcc first bound to 10.42.0.220, now sourced from 10.42.0.215."
+    },
+    {
+      "file": "capture_20250616_124832.pcap",
+      "frame": 13587,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x115e5 first bound to 10.42.0.219, now sourced from 10.42.0.217."
+    },
+    {
+      "file": "capture_20250616_124832.pcap",
+      "frame": 13855,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x41c35 first bound to 10.42.0.215, now sourced from 10.42.0.220."
+    },
+    {
+      "file": "capture_20250616_124832.pcap",
+      "frame": 14023,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x401c4 first bound to 10.42.0.219, now sourced from 10.42.0.217."
+    },
+    {
+      "file": "capture_20250616_124832.pcap",
+      "frame": 14057,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x339e3 first bound to 10.42.0.220, now sourced from 10.42.0.215."
+    },
+    {
+      "file": "capture_20250616_124832.pcap",
+      "frame": 14807,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0xde6c first bound to 10.42.0.220, now sourced from 10.42.0.217."
+    },
+    {
+      "file": "capture_20250616_124832.pcap",
+      "frame": 15569,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x10874 first bound to 10.42.0.219, now sourced from 10.42.0.217."
+    },
+    {
+      "file": "capture_20250616_124832.pcap",
+      "frame": 15909,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0xbf797 first bound to 10.42.0.215, now sourced from 10.42.0.219."
+    },
+    {
+      "file": "capture_20250616_124832.pcap",
+      "frame": 16658,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0x9078b first bound to 10.42.0.215, now sourced from 10.42.0.220."
+    },
+    {
+      "file": "capture_20250616_124832.pcap",
+      "frame": 17424,
+      "rules": [
+        "R2_TEID_SPOOF"
+      ],
+      "detail": "TEID 0xa625d first bound to 10.42.0.217, now sourced from 10.42.0.220."
+    }
+  ]
+}

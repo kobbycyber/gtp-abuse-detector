@@ -1,0 +1,195 @@
+{
+  "sources": [
+    "/home/ubuntu/gtprev/oulu/ddos_attack/**/*.pcap"
+  ],
+  "label": "attack",
+  "config": {
+    "core_ips": "10.42.0.64,10.42.0.208",
+    "gnb_ips": "(none: strict R2)"
+  },
+  "frames": 11606353,
+  "gtpu_packets": 11561011,
+  "flagged": 109,
+  "flagged_fraction": 9.42824118063723e-06,
+  "flagged_wilson95": [
+    7.816636742367702e-06,
+    1.137211631465215e-05
+  ],
+  "rule_hits": {
+    "R3_CP_SMUGGLING": 109
+  },
+  "naive_flagged": 109,
+  "naive_flagged_fraction": 9.42824118063723e-06,
+  "naive_flagged_wilson95": [
+    7.816636742367702e-06,
+    1.137211631465215e-05
+  ],
+  "naive_rule_hits": {
+    "R3_CP_SMUGGLING": 109
+  },
+  "errors": 0,
+  "files": 53,
+  "seconds": 4991.7,
+  "examples": [
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301375,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301376,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301377,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301383,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301384,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301385,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301386,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301387,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301388,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301398,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301400,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301401,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301402,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301403,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301404,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301405,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301409,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301410,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301411,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    },
+    {
+      "file": "capture_20250824_140634.pcap",
+      "frame": 11301412,
+      "rules": [
+        "R3_CP_SMUGGLING"
+      ],
+      "detail": "Control-plane payload (GTP-C) encapsulated in GTP-U tunnel."
+    }
+  ]
+}

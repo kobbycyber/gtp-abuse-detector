@@ -29,7 +29,7 @@ This is the path that produces your thesis numbers. It needs only Python + Scapy
 
 ```bash
 pip install scapy pytest
-make test      # 24 tests: abuse detected, realistic benign clean, evasions, baseline & repro locked
+make test      # 25 tests: abuse detected, realistic benign clean, evasions, baseline & repro locked
 make eval      # comprehensive benchmark -> eval/RESULTS.md
 make evasions  # list the crafted evasion suite (what the detector must / can't catch)
 ```
@@ -38,10 +38,8 @@ Reference result (primary seed 1337, 1,320-packet corpus whose 720 benign
 packets span **twelve** traffic categories, including adversarial
 Unstructured-PDU bytes and legitimate handovers, plus 120 victim flows):
 precision 1.0, recall 1.0, F1 1.0, false-positive rate 0.0, stable across five
-seeds (σ = 0), ≈1,450 pkt/s single core measured over the full
-dissect and evaluate cycle (dissection is ~76% of that cost on this
-host; the remaining rule evaluation works out to ≈6,000 pkt/s, a figure derived
-from that split rather than timed, and not a tap rate). The evaluation also reports a **naive-baseline comparison**
+seeds, ≈1,400 pkt/s single core measured over the full dissect and evaluate
+cycle (dissection is about 73% of that cost; `eval/latency.py`). The evaluation also reports a **naive-baseline comparison**
 (the baseline misses 100% of GTP-in-GTP, this is the contribution,
 quantified), a **false-positive ablation** tracing every residual FP to a
 single mitigated cause, and an **evasion suite** documenting the detector's
@@ -76,6 +74,21 @@ precision, recall and F1 1.0, FPR 0.0. Before the R2 ownership fix the same
 corpus gave 608 findings, with 16 false positives and 15 false negatives. The
 send takes about 17 minutes, because Scapy falls back to broadcast frames
 inside the core's namespace.
+
+## Held-out, independent-data and live evaluation
+
+The revised manuscript (`paper/manuscript_rev2.docx`) adds evaluation on data
+not used during development:
+
+```bash
+python3 eval/heldout.py --realistic-outer --out results/heldout_ext.json   # seeds 101-110
+scripts/revision2/run_external.sh /path/to/5g-cgad attacks                 # Oulu 5G-CGAD
+UE_COUNT=3 make lab-up && scripts/revision2/run_live.sh L1 2026 0x2 400 100 # live, 3 UEs
+python3 eval/comparator_pcaps.py --out comparators/                         # pcaps for Zeek/Suricata
+python3 eval/latency.py --reps 5 --out results/latency.json
+```
+
+Results and how to read them: `eval/results/revision2/README.md`.
 
 ## Detection rules
 
@@ -141,3 +154,7 @@ maintained PPA. If a NF config schema changes upstream, the entrypoint rebinds
 only NGAP + GTP-U addresses and leaves the rest as packaged, pin full YAMLs in
 `core/configs/` for an exact thesis appendix. The **offline eval path does not
 depend on the live core at all**, so your metrics stay reproducible regardless.
+
+## Licence
+
+MIT. See `LICENSE`.

@@ -1,0 +1,3 @@
+64 bytes from 8.8.8.8: icmp_seq=3230 ttl=116 time=8.43 ms
+64 bytes from 8.8.8.8: icmp_seq=3230 ttl=116 time=4.02 ms
+64 bytes from 8.8.8.8: icmp_seq=3229 ttl=116 time=4.03 ms

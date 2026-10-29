@@ -22,14 +22,20 @@ until mongosh "${DB_URI}" --quiet --eval 'db.runCommand({ping:1}).ok' 2>/dev/nul
 done
 echo "[core] MongoDB is up."
 
-# --- register the test subscriber (idempotent) ---
+# --- register the test subscribers (idempotent) ---
+# UE_COUNT consecutive IMSIs starting at IMSI, matching `nr-ue -n` in ran/run.sh.
 export DB_URI
-if ! open5gs-dbctl showall 2>/dev/null | grep -q "${IMSI}"; then
-    echo "[core] registering subscriber ${IMSI}"
-    open5gs-dbctl add "${IMSI}" "${KI}" "${OPC}" || true
-else
-    echo "[core] subscriber ${IMSI} already present"
-fi
+UE_COUNT="${UE_COUNT:-1}"
+REGISTERED="$(open5gs-dbctl showall 2>/dev/null || true)"
+for i in $(seq 0 $((UE_COUNT - 1))); do
+    imsi=$(printf "%015d" $((10#${IMSI} + i)))
+    if ! grep -q "${imsi}" <<<"${REGISTERED}"; then
+        echo "[core] registering subscriber ${imsi}"
+        open5gs-dbctl add "${imsi}" "${KI}" "${OPC}" || true
+    else
+        echo "[core] subscriber ${imsi} already present"
+    fi
+done
 
 # --- apply address / PLMN overrides onto the packaged configs ---
 # UPF: bind GTP-U (N3) on the core IP so the detector can tap it.

@@ -18,8 +18,11 @@ echo "[ran] starting gNB -> AMF ${AMF_IP}"
 GNB_PID=$!
 
 sleep 6
-echo "[ran] starting UE"
-./build/nr-ue -c config/ue.yaml &
+UE_COUNT="${UE_COUNT:-1}"
+echo "[ran] starting ${UE_COUNT} UE(s)"
+# -n starts consecutive IMSIs from the one in ue.yaml; the core registers the
+# same range (core/entrypoint.sh). Each UE gets its own uesimtunN interface.
+./build/nr-ue -c config/ue.yaml -n "${UE_COUNT}" &
 UE_PID=$!
 
 # Keep both alive; if either dies, exit so compose can restart.
